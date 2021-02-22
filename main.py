@@ -129,14 +129,14 @@ def MeasureSpeed(cap):
                 passed_a_time = time.time()
             elif max_x > b_center and passed_b_time is None:
                 passed_b_time = time.time()
-            if passed_a_time and (time.time() > passed_a_time + 4):
+            if passed_a_time and (time.time() > passed_a_time + 6):
                 break
         elif train_from == 'right':
             if passed_b_time is None:
                 passed_b_time = time.time()
             elif min_x < a_center and passed_a_time is None:
                 passed_a_time = time.time()
-            if passed_b_time and (time.time() > passed_b_time + 4):
+            if passed_b_time and (time.time() > passed_b_time + 6):
                 break
 
         if passed_a_time is not None and passed_b_time is not None:
