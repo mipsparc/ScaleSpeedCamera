@@ -6,6 +6,11 @@ from contextlib import contextmanager
 import time
 import platform
 
+print('''ScaleSpeedCamera (鉄道模型車速計測ソフト) by mipsparc
+
+起動中です
+しばらくお待ちください……''')
+
 OS = platform.system()
 if OS == 'Windows':
     import win32com.client as wincl

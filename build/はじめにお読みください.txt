@@ -26,5 +26,8 @@ Windows 10 64bitでの動作が確認されています。
 - 列車を通過させると、おおよその速度を音声で知らせます。
 - 終了するには、Qキーを押すか、右上のバツボタンでウィンドウを閉じてください。
 
-
-
+# 作者
+mipsparc
+Twitter: https://twitter.com/mipsparc
+Mail: mipsparc@gmail.com
+お気軽にご連絡ください
