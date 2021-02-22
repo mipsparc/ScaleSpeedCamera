@@ -66,16 +66,19 @@ def MeasureSpeed(cap):
             
         qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
         
+        scale = 'N'
         for d in qrdata:
             if d.data == b'A':
                 a_center = int((d.polygon[0].x + d.polygon[2].x) / 2)
                 a_top = d.rect.top
                 a_bottom = d.rect.top + d.rect.height
-            if d.data == b'B':
+            if d.data == b'B' or d.data == b'C':
+                if d.data == b'C':
+                    scale = 'HO'
                 b_center = int((d.polygon[0].x + d.polygon[2].x) / 2)
                 b_top = d.rect.top
                 b_bottom = d.rect.top + d.rect.height
-        
+                
         if a_center and b_center:
             qrrect_top = int((a_top + b_top) / 2)
         
@@ -135,7 +138,11 @@ def MeasureSpeed(cap):
             passing_time = abs(passed_a_time - passed_b_time)
             if passing_time > 0.3:
                 qr_length = 0.15
-                kph = int((qr_length / passing_time) * 3.6 * 150)
+                if scale == 'N':
+                    kph = int((qr_length / passing_time) * 3.6 * 150)
+                else:
+                    # HO
+                    kph = int((qr_length / passing_time) * 3.6 * 80)
                 print('kph:', kph)
 
                 speech_text = f'{kph}キロメートル毎時です'
