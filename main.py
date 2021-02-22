@@ -4,7 +4,12 @@ import os
 import sys
 from contextlib import contextmanager
 import time
-import subprocess
+os = platform.system()
+if os == 'Windows':
+    import win32com.client as wincl
+    voice = wincl.Dispatch("SAPI.SpVoice")
+else:
+    import subprocess
 
 camera_id = 0
 camera_width = 1280
@@ -130,7 +135,10 @@ def MeasureSpeed(cap):
                 print('kph:', kph)
 
                 speech_text = f'{kph}キロメートル毎時です'
-                subprocess.call(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
+                if os == 'Windows':
+                    voice.Speak(speech_text)
+                else:
+                    subprocess.call(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
                 break
             else:
                 break
