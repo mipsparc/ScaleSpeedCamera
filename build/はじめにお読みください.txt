@@ -15,6 +15,7 @@ Windows 10 64bitでの動作が確認されています。
 上記環境で正常に動作しなかった場合は、Twitterの @mipsparc にてご報告をお願いします。
 
 # 使用手順
+- https://twitter.com/mipsparc/status/1363758162214588416 を見て、使い方の概要を把握する
 - 「地点検知用紙.png」をクリック、Downloadボタンを押してダウンロードし、A4サイズで印刷して、切り出して直線レール沿いに置きます。
 - 「ScaleSpeedCamera_v(バージョン).exe」ををクリック、Downloadボタンを押してダウンロードします。
 - ダウンロードしたScaleSpeedCamera_v(バージョン).exeをダブルクリックします。
