@@ -155,12 +155,10 @@ def MeasureSpeed(cap):
 
         cv2.imshow('ScaleSpeed',frame)
         if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeed', 0) == -1:
-            exit()
-
+            raise KeyboardInterrupt
 try:
     while (cap.isOpened()):
         MeasureSpeed(cap)
-except KeyboardInterrupt:
+finally:
     cap.release()
     cv2.destroyAllWindows()
-    raise
