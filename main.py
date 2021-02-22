@@ -41,14 +41,6 @@ def stderr_redirected(to=os.devnull):
                                             # buffering and flags such as
                                             # CLOEXEC may be different
 
-try:
-    while (cap.isOpened()):
-        MeasureSpeed(cap)
-except KeyboardInterrupt:
-    cap.release()
-    cv2.destroyAllWindows()
-    raise
-
 def MeasureSpeed(cap):
     a_center = None
     b_center = None
@@ -137,9 +129,8 @@ def MeasureSpeed(cap):
                 kph = int((qr_length / passing_time) * 3.6 * 150)
                 print('kph:', kph)
 
-                if SPEECH:
-                    speech_text = f'{kph}キロメートル毎時です'
-                    subprocess.call(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
+                speech_text = f'{kph}キロメートル毎時です'
+                subprocess.call(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
                 break
             else:
                 break
@@ -152,4 +143,12 @@ def MeasureSpeed(cap):
 
         cv2.imshow('frame',frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            exit()
+
+try:
+    while (cap.isOpened()):
+        MeasureSpeed(cap)
+except KeyboardInterrupt:
+    cap.release()
+    cv2.destroyAllWindows()
+    raise
