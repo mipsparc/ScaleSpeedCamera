@@ -4,12 +4,36 @@ import os
 import sys
 from contextlib import contextmanager
 import time
-os = platform.system()
-if os == 'Windows':
+import platform
+
+OS = platform.system()
+if OS == 'Windows':
     import win32com.client as wincl
     voice = wincl.Dispatch("SAPI.SpVoice")
 else:
     import subprocess
+    # JPEG破損エラーを抑止する
+    @contextmanager
+    def stderr_redirected(to=os.devnull):
+        fd = sys.stderr.fileno()
+
+        ##### assert that Python and C stdio write using the same file descriptor
+        ####assert libc.fileno(ctypes.c_void_p.in_dll(libc, "stdout")) == fd == 1
+
+        def _redirect_stderr(to):
+            sys.stderr.close() # + implicit flush()
+            os.dup2(to.fileno(), fd) # fd writes to 'to' file
+            sys.stderr = os.fdopen(fd, 'w') # Python writes to fd
+
+        with os.fdopen(os.dup(fd), 'w') as old_stderr:
+            with open(to, 'w') as file:
+                _redirect_stderr(to=file)
+            try:
+                yield # allow code to be run with the redirected stdout
+            finally:
+                _redirect_stderr(to=old_stderr) # restore stdout.
+                                                # buffering and flags such as
+                                                # CLOEXEC may be different
 
 camera_id = 0
 camera_width = 1280
@@ -23,29 +47,6 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 cap.set(cv2.CAP_PROP_FPS, camera_fps)
 
-# JPEG破損エラーを抑止する
-@contextmanager
-def stderr_redirected(to=os.devnull):
-    fd = sys.stderr.fileno()
-
-    ##### assert that Python and C stdio write using the same file descriptor
-    ####assert libc.fileno(ctypes.c_void_p.in_dll(libc, "stdout")) == fd == 1
-
-    def _redirect_stderr(to):
-        sys.stderr.close() # + implicit flush()
-        os.dup2(to.fileno(), fd) # fd writes to 'to' file
-        sys.stderr = os.fdopen(fd, 'w') # Python writes to fd
-
-    with os.fdopen(os.dup(fd), 'w') as old_stderr:
-        with open(to, 'w') as file:
-            _redirect_stderr(to=file)
-        try:
-            yield # allow code to be run with the redirected stdout
-        finally:
-            _redirect_stderr(to=old_stderr) # restore stdout.
-                                            # buffering and flags such as
-                                            # CLOEXEC may be different
-
 def MeasureSpeed(cap):
     a_center = None
     b_center = None
@@ -54,8 +55,11 @@ def MeasureSpeed(cap):
     passed_a_time = None
     passed_b_time = None
     while True:
-        with stderr_redirected():
+        if OS == 'Windows':
             ret, frame = cap.read()
+        else:
+            with stderr_redirected():
+                ret, frame = cap.read()
         
         if ret == False:
             continue
@@ -135,7 +139,7 @@ def MeasureSpeed(cap):
                 print('kph:', kph)
 
                 speech_text = f'{kph}キロメートル毎時です'
-                if os == 'Windows':
+                if OS == 'Windows':
                     voice.Speak(speech_text)
                 else:
                     subprocess.call(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
@@ -149,8 +153,8 @@ def MeasureSpeed(cap):
             cv2.rectangle(frame, (a_center - 100, qrrect_top - 300), (a_center + 100, a_top), (0,255,0), 10)
             cv2.rectangle(frame, (b_center - 100, qrrect_top - 300), (b_center + 100, b_top), (0,255,0), 10)
 
-        cv2.imshow('frame',frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        cv2.imshow('ScaleSpeed',frame)
+        if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeed', 0) == -1:
             exit()
 
 try:
