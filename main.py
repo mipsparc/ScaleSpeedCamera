@@ -66,7 +66,16 @@ def MeasureSpeed(cap):
     train_from = None
     passed_a_time = None
     passed_b_time = None
+    cnt_qr = 0
+    last_time = time.time()
+    
+    # 列車が去るまで(rectがなくなるまで)なにもしない。30フレーム数える
+    is_still = 30
+    
     while True:
+        if is_still > 0:
+            print('is_still')
+        
         if OS == 'Windows':
             ret, frame = cap.read()
         else:
@@ -76,26 +85,31 @@ def MeasureSpeed(cap):
         if ret == False:
             continue
             
-        qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
-        
-        scale = 'N'
-        for d in qrdata:
-            if d.data == b'A':
-                a_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
-                a_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
-                a_top = d.rect.top
-                a_bottom_center = int((d.polygon[0].x + d.polygon[1].x) / 2)
-                a_bottom_center_y = int((d.polygon[0].y + d.polygon[1].y) / 2)
+        if cnt_qr % 5 == 0:
+            qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
+            
+            scale = 'N'
+            for d in qrdata:
+                if d.data == b'A':
+                    a_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
+                    a_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
+                    a_top = d.rect.top
+                    a_bottom_center = int((d.polygon[0].x + d.polygon[1].x) / 2)
+                    a_bottom_center_y = int((d.polygon[0].y + d.polygon[1].y) / 2)
 
-            if d.data == b'B' or d.data == b'C':
-                if d.data == b'C':
-                    scale = 'HO'
-                b_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
-                b_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
-                b_top = d.rect.top
-                b_bottom_center = int((d.polygon[1].x + d.polygon[2].x) / 2)
-                b_bottom_center_y = int((d.polygon[1].y + d.polygon[2].y) / 2)
-                        
+                if d.data == b'B' or d.data == b'C':
+                    if d.data == b'C':
+                        scale = 'HO'
+                    b_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
+                    b_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
+                    b_top = d.rect.top
+                    b_bottom_center = int((d.polygon[1].x + d.polygon[2].x) / 2)
+                    b_bottom_center_y = int((d.polygon[1].y + d.polygon[2].y) / 2)
+            
+            cnt_qr = 1
+        else:
+            cnt_qr += 1
+
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         if not (a_center and b_center):
@@ -104,15 +118,9 @@ def MeasureSpeed(cap):
                 raise KeyboardInterrupt
             continue
 
-        qrrect_top = int((a_top + b_top) / 2)
-
         if avg is None:
             avg = frame.copy().astype("float")
             continue
-        
-        # コントラストを1.8に設定
-        dst = frame * 1.8
-        frame = np.clip(frame, 0, 255).astype(np.uint8)
 
         cv2.accumulateWeighted(frame, avg, 0.4)
         frameDelta = cv2.absdiff(frame, cv2.convertScaleAbs(avg))
@@ -122,77 +130,82 @@ def MeasureSpeed(cap):
         
         max_x = 0
         min_x = 99999
+        max_x_rect = []
         for i in range(0, len(contours)):
             if len(contours[i]) > 0:
                 # remove small objects
-                if cv2.contourArea(contours[i]) < 800:
+                if cv2.contourArea(contours[i]) < 200:
                     continue
 
                 rect = contours[i]
                 x, y, w, h = cv2.boundingRect(rect)
-                # QRコードよりも下を無視する
-                if y + h > qrrect_top:
+                # 範囲外を無視する
+                if y > int((a_top + b_top) / 2):
+                    continue
+                if y + h < a_top - 200:
                     continue
                 
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 5)
                 
                 max_x = int(max(max_x, x + w))
                 if max_x == x + w:
-                    max_x_rect = [x, y, w, h]
+                    max_x_rect = [x, y]
                 min_x = int(min(min_x, x))
                 if min_x == x:
-                    min_x_rect = [x, y, w, h]
-                
-                if train_from is None:                        
-                    if a_center < x < a_center + 100:
-                        if a_top > y > qrrect_top - 200:
-                            train_from = 'left'
-                            passed_a_time = time.time()
-                            print('left')
-                    elif b_center < x < b_center + 100:
-                        if b_top > y > qrrect_top - 200:
-                            train_from = 'right'
-                            passed_b_time = time.time()
-                            print('right')
-
-        if train_from == 'left':
-            if max_x > b_center:
-                if b_center < max_x_rect[0] < b_center + 100:
-                    if b_top > max_x_rect[1] > qrrect_top - 200:
+                    min_x_rect = [x, y]
+        
+        if len(max_x_rect) > 0:
+            if train_from is None and is_still <= 0:                        
+                if a_center < max_x_rect[0] < (a_center + b_center) / 2:
+                    if a_top > max_x_rect[1] > a_top - 200:
+                        train_from = 'left'
+                        passed_a_time = time.time()
+                        print('left')
+                elif (a_center + b_center) / 2 < min_x_rect[0] < b_center:
+                    if b_top > min_x_rect[1] > a_top - 200:
+                        train_from = 'right'
                         passed_b_time = time.time()
-            if passed_a_time and (time.time() > passed_a_time + 6):
-                break
-        elif train_from == 'right':
-            if min_x < a_center:
-                if a_center < max_x_rect[0] < a_center + 100:
-                        if a_top > max_x_rect[1] > qrrect_top - 200:
-                            passed_a_time = time.time()
-            if passed_b_time and (time.time() > passed_b_time + 6):
-                break
+                        print('right')
+            
+            if train_from == 'left' and passed_a_time + 0.5 < time.time():
+                print('passed left')
+                if max_x_rect[0] > b_center:
+                    if b_top > max_x_rect[1] > a_top - 200:
+                        passed_b_time = time.time()
+                if passed_a_time and (time.time() > passed_a_time + 6):
+                    break
+            elif train_from == 'right' and passed_b_time + 0.5 < time.time():
+                print('passed right')
+                if a_center > min_x_rect[0]:
+                    if a_top > min_x_rect[1] > a_top - 200:
+                        passed_a_time = time.time()
+                if passed_b_time and (time.time() > passed_b_time + 6):
+                    break
+        else:
+            is_still -= 1
 
         if passed_a_time is not None and passed_b_time is not None:
             passing_time = abs(passed_a_time - passed_b_time)
-            if passing_time > 0.3:
-                qr_length = 0.15
-                if scale == 'N':
-                    kph = int((qr_length / passing_time) * 3.6 * 150)
-                else:
-                    # HO
-                    kph = int((qr_length / passing_time) * 3.6 * 80)
-                print('kph:', kph)
-
-                speak(f'時速{kph}キロメートルです')
-
-                break
+            qr_length = 0.15
+            if scale == 'N':
+                kph = int((qr_length / passing_time) * 3.6 * 150)
             else:
-                break
+                # HO
+                kph = int((qr_length / passing_time) * 3.6 * 80)
+            print('kph:', kph)
+            speak(f'時速{kph}キロメートルです')
+            break
         
         cv2.line(frame, (a_bottom_center, a_bottom_center_y), (a_bottom_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (b_bottom_center, b_bottom_center_y), (b_bottom_center, 0), (255, 0, 0), 3)
+        cv2.line(frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
+        cv2.line(frame, (0, a_top - 200), (2000, b_top - 200), (255, 0, 0), 3)
         
-        cv2.imshow('ScaleSpeed',frame)
-        if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeed', 0) == -1:
+        cv2.imshow('ScaleSpeedCamera',frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeedCamera', 0) == -1:
             raise KeyboardInterrupt
+        
 try:
     while (cap.isOpened()):
         MeasureSpeed(cap)
