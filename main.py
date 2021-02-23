@@ -6,7 +6,6 @@ import sys
 from contextlib import contextmanager
 import time
 import platform
-import collision
 
 print('''ScaleSpeedCamera (鉄道模型車速計測ソフト) by mipsparc
 
@@ -42,6 +41,12 @@ else:
                                                 # buffering and flags such as
                                                 # CLOEXEC may be different
 
+def speak(speech_text):
+    if OS == 'Windows':
+        voice.Speak(speech_text)
+    else:
+        subprocess.run(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
+
 camera_id = 0
 camera_width = 1280
 camera_height = 720
@@ -72,7 +77,6 @@ def MeasureSpeed(cap):
             continue
             
         qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
-        print(qrdata)
         
         scale = 'N'
         for d in qrdata:
@@ -82,18 +86,6 @@ def MeasureSpeed(cap):
                 a_top = d.rect.top
                 a_bottom_center = int((d.polygon[0].x + d.polygon[1].x) / 2)
                 a_bottom_center_y = int((d.polygon[0].y + d.polygon[1].y) / 2)
-                try:
-                    a_tilt = (a_center_y - a_bottom_center_y) / (a_center - a_bottom_center)
-                except ZeroDivisionError:
-                    a_tilt = 0
-                    
-                print('a_tilt', a_tilt)
-
-                #a_line = collision.Poly(collision.Vector(a_center, a_center_y), [
-                    #collision.Vector(a_center + 1, a_center_y)
-                    
-                #])
-
 
             if d.data == b'B' or d.data == b'C':
                 if d.data == b'C':
@@ -103,21 +95,16 @@ def MeasureSpeed(cap):
                 b_top = d.rect.top
                 b_bottom_center = int((d.polygon[1].x + d.polygon[2].x) / 2)
                 b_bottom_center_y = int((d.polygon[1].y + d.polygon[2].y) / 2)
-                try:
-                    b_tilt = (b_center_y - b_bottom_center_y) / (b_center - b_bottom_center)
-                except ZeroDivisionError:
-                    b_tilt = 0
-                    
-                print('b_tilt', b_tilt)
-
-                #b_line = collision.Poly(collision.Vector(b_center, b_center_y), [
-                    #collision.Vector(b_bottom_center, b_bottom_center_y)
-                #])
-
-        if a_center and b_center:
-            qrrect_top = int((a_top + b_top) / 2)
-        
+                        
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        if not (a_center and b_center):
+            cv2.imshow('ScaleSpeed',frame)
+            if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeed', 0) == -1:
+                raise KeyboardInterrupt
+            continue
+
+        qrrect_top = int((a_top + b_top) / 2)
 
         if avg is None:
             avg = frame.copy().astype("float")
@@ -127,52 +114,59 @@ def MeasureSpeed(cap):
         dst = frame * 1.8
         frame = np.clip(frame, 0, 255).astype(np.uint8)
 
-        cv2.accumulateWeighted(frame, avg, 0.3)
+        cv2.accumulateWeighted(frame, avg, 0.4)
         frameDelta = cv2.absdiff(frame, cv2.convertScaleAbs(avg))
         thresh = cv2.threshold(frameDelta, 20, 255, cv2.THRESH_BINARY)[1]
         
         contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            
+        
         max_x = 0
         min_x = 99999
         for i in range(0, len(contours)):
             if len(contours[i]) > 0:
                 # remove small objects
-                if cv2.contourArea(contours[i]) < 900:
+                if cv2.contourArea(contours[i]) < 800:
                     continue
 
                 rect = contours[i]
                 x, y, w, h = cv2.boundingRect(rect)
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 0), 10)
+                # QRコードよりも下を無視する
+                if y + h > qrrect_top:
+                    continue
                 
-                box = collision.Poly.from_box(collision.Vector(x, y), w, h)
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 5)
                 
-                max_x = int(max(max_x, x + w/2))
-                min_x = int(min(min_x, x + w/2))
+                max_x = int(max(max_x, x + w))
+                if max_x == x + w:
+                    max_x_rect = [x, y, w, h]
+                min_x = int(min(min_x, x))
+                if min_x == x:
+                    min_x_rect = [x, y, w, h]
                 
-                if a_center and b_center:
-                    if train_from is None:
-                        if a_center < (x + w/2) < a_center + 100:
-                            if a_top > (y + h/2) > qrrect_top - 200:
-                                train_from = 'left'
-                                print('left')
-                        elif b_center < (x + w/2) < b_center + 100:
-                            if b_top > (y + h/2) > qrrect_top - 200:
-                                train_from = 'right'
-                                print('right')
+                if train_from is None:                        
+                    if a_center < x < a_center + 100:
+                        if a_top > y > qrrect_top - 200:
+                            train_from = 'left'
+                            passed_a_time = time.time()
+                            print('left')
+                    elif b_center < x < b_center + 100:
+                        if b_top > y > qrrect_top - 200:
+                            train_from = 'right'
+                            passed_b_time = time.time()
+                            print('right')
 
         if train_from == 'left':
-            if passed_a_time is None:
-                passed_a_time = time.time()
-            elif max_x > b_center and passed_b_time is None:
-                passed_b_time = time.time()
+            if max_x > b_center:
+                if b_center < max_x_rect[0] < b_center + 100:
+                    if b_top > max_x_rect[1] > qrrect_top - 200:
+                        passed_b_time = time.time()
             if passed_a_time and (time.time() > passed_a_time + 6):
                 break
         elif train_from == 'right':
-            if passed_b_time is None:
-                passed_b_time = time.time()
-            elif min_x < a_center and passed_a_time is None:
-                passed_a_time = time.time()
+            if min_x < a_center:
+                if a_center < max_x_rect[0] < a_center + 100:
+                        if a_top > max_x_rect[1] > qrrect_top - 200:
+                            passed_a_time = time.time()
             if passed_b_time and (time.time() > passed_b_time + 6):
                 break
 
@@ -187,26 +181,15 @@ def MeasureSpeed(cap):
                     kph = int((qr_length / passing_time) * 3.6 * 80)
                 print('kph:', kph)
 
-                speech_text = f'{kph}キロメートル毎時です'
-                if OS == 'Windows':
-                    voice.Speak(speech_text)
-                else:
-                    subprocess.run(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
+                speak(f'時速{kph}キロメートルです')
+
                 break
             else:
                 break
         
-        if a_center and b_center:
-            intercept_a = -a_tilt * a_bottom_center_y - a_bottom_center
-            intercept_b = a_tilt * b_bottom_center_y - b_bottom_center
-            print(b_tilt)
-            cv2.line(frame, (a_bottom_center, a_bottom_center_y), (int(-intercept_a / a_tilt), 0), (255, 0, 0), 3)
-            cv2.line(frame, (b_bottom_center, b_bottom_center_y), (int(-intercept_b / -a_tilt), 0), (255, 0, 0), 3)
-            cv2.rectangle(frame, (a_center, qrrect_top - 200), (a_center + 100, a_top), (0,255,0), 10)
-            cv2.rectangle(frame, (b_center - 100, qrrect_top - 200), (b_center, b_top), (0,255,0), 10)
-            cv2.circle(frame, (b_center, b_center_y), 15, (0,255,0), -1)
-            cv2.circle(frame, (b_bottom_center, b_bottom_center_y), 10, (0,255,0), -1)
-
+        cv2.line(frame, (a_bottom_center, a_bottom_center_y), (a_bottom_center, 0), (255, 0, 0), 3)
+        cv2.line(frame, (b_bottom_center, b_bottom_center_y), (b_bottom_center, 0), (255, 0, 0), 3)
+        
         cv2.imshow('ScaleSpeed',frame)
         if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeed', 0) == -1:
             raise KeyboardInterrupt
