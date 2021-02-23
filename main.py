@@ -145,6 +145,10 @@ def MeasureSpeed(cap):
                 if y + h < a_top - 200:
                     continue
                 
+                #線路の微妙な部分を排除する
+                if h < 10:
+                    continue
+                
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 5)
                 
                 max_x = int(max(max_x, x + w))
