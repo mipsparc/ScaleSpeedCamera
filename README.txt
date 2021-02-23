@@ -17,6 +17,10 @@ Linux, Windows 10 64bitでの動作が確認されています。
 # 本ソフトウェアのライセンス
 MITライセンスとします。
 
+# Linuxで動かす場合
+$ sudo apt-get install open-jtalk open-jtalk-mecab-naist-jdic hts-voice-nitech-jp-atr503-m001
+として、発話を準備する必要があります。
+
 # 作者
 mipsparc
 Twitter: https://twitter.com/mipsparc
