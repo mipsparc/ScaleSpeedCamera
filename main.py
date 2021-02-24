@@ -6,11 +6,33 @@ import sys
 from contextlib import contextmanager
 import time
 import platform
+import urllib.request
+import json
 
-print('''ScaleSpeedCamera (鉄道模型車速計測ソフト) by mipsparc
+# リリースバージョン
+version = 1.03
 
-起動中です
-しばらくお待ちください……''')
+# 最新バージョン確認
+try:
+    with urllib.request.urlopen('https://api.github.com/repos/mipsparc/ScaleSpeedCamera/releases/latest', timeout=3) as response:
+        j = response.read().decode('utf-8')
+        latest_version = json.loads(j)['tag_name'][1:]
+        if float(latest_version) > version:
+            print('新しいバージョンが出ています。以下よりダウンロードをお願いします。')
+            print('https://github.com/mipsparc/ScaleSpeedCamera/releases')
+            print()
+            input('このまま起動するには、Enterキーを押してください')
+            print()
+        else:
+            print('最新のバージョンです')
+except KeyboardInterrupt:
+    raise
+except:
+    pass
+   
+print('ScaleSpeedCamera (鉄道模型車速計測ソフト) by mipsparc')
+print(f'バージョン{version}')
+print('起動中です。しばらくお待ちください……''')
 
 OS = platform.system()
 if OS == 'Windows':
@@ -58,6 +80,8 @@ cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 cap.set(cv2.CAP_PROP_FPS, camera_fps)
+
+print('起動しました')
 
 def MeasureSpeed(cap):
     a_center = None
@@ -112,9 +136,10 @@ def MeasureSpeed(cap):
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
+        # QRコードが認識できなかった場合
         if not (a_center and b_center):
-            cv2.imshow('ScaleSpeed',frame)
-            if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeed', 0) == -1:
+            cv2.imshow('ScaleSpeedCamera',frame)
+            if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeedCamera', 0) == -1:
                 raise KeyboardInterrupt
             continue
 
@@ -133,12 +158,13 @@ def MeasureSpeed(cap):
         max_x_rect = []
         for i in range(0, len(contours)):
             if len(contours[i]) > 0:
-                # remove small objects
-                if cv2.contourArea(contours[i]) < 200:
+                # 小さいオブジェクトを除去する
+                if cv2.contourArea(contours[i]) < 150:
                     continue
 
                 rect = contours[i]
                 x, y, w, h = cv2.boundingRect(rect)
+                
                 # 範囲外を無視する
                 if y > int((a_top + b_top) / 2):
                     continue
@@ -173,15 +199,15 @@ def MeasureSpeed(cap):
             
             if train_from == 'left' and passed_a_time + 0.5 < time.time():
                 if passed_b_time is None:
-                    print('passed left')
                     if max_x_rect[0] > b_center:
                         if b_top > max_x_rect[1] > a_top - 200:
+                            print('passed left')
                             passed_b_time = time.time()
             elif train_from == 'right' and passed_b_time + 0.5 < time.time():
                 if passed_a_time is None:
-                    print('passed right')
                     if a_center > min_x_rect[0]:
                         if a_top > min_x_rect[1] > a_top - 200:
+                            print('passed right')
                             passed_a_time = time.time()
                             
             if passed_a_time and (time.time() > passed_a_time + 6):
@@ -199,7 +225,7 @@ def MeasureSpeed(cap):
             else:
                 # HO
                 kph = int((qr_length / passing_time) * 3.6 * 80)
-            print('kph:', kph)
+            print(f'時速{kph}キロメートルです')
             speak(f'時速{kph}キロメートルです')
             break
         
