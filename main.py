@@ -84,6 +84,9 @@ def MeasureSpeed(cap):
             
         if cnt_qr % 5 == 0:
             qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
+            if qrdata == []:
+                a_center = None
+                b_center = None
             
             scale = 'N'
             for d in qrdata:
