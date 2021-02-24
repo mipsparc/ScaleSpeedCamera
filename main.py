@@ -72,10 +72,7 @@ def MeasureSpeed(cap):
     # 列車が去るまで(rectがなくなるまで)なにもしない。30フレーム数える
     is_still = 30
     
-    while True:
-        if is_still > 0:
-            print('is_still')
-        
+    while True:     
         if OS == 'Windows':
             ret, frame = cap.read()
         else:
@@ -172,19 +169,22 @@ def MeasureSpeed(cap):
                         print('right')
             
             if train_from == 'left' and passed_a_time + 0.5 < time.time():
-                print('passed left')
-                if max_x_rect[0] > b_center:
-                    if b_top > max_x_rect[1] > a_top - 200:
-                        passed_b_time = time.time()
-                if passed_a_time and (time.time() > passed_a_time + 6):
-                    break
+                if passed_b_time is None:
+                    print('passed left')
+                    if max_x_rect[0] > b_center:
+                        if b_top > max_x_rect[1] > a_top - 200:
+                            passed_b_time = time.time()
             elif train_from == 'right' and passed_b_time + 0.5 < time.time():
-                print('passed right')
-                if a_center > min_x_rect[0]:
-                    if a_top > min_x_rect[1] > a_top - 200:
-                        passed_a_time = time.time()
-                if passed_b_time and (time.time() > passed_b_time + 6):
-                    break
+                if passed_a_time is None:
+                    print('passed right')
+                    if a_center > min_x_rect[0]:
+                        if a_top > min_x_rect[1] > a_top - 200:
+                            passed_a_time = time.time()
+                            
+            if passed_a_time and (time.time() > passed_a_time + 6):
+                break
+            if passed_b_time and (time.time() > passed_b_time + 6):
+                break
         else:
             is_still -= 1
 
