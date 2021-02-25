@@ -10,7 +10,7 @@ import urllib.request
 import json
 
 # リリースバージョン
-version = 1.03
+version = 1.04
 
 # 最新バージョン確認
 try:
@@ -121,9 +121,11 @@ def MeasureSpeed(cap):
                     a_bottom_center = int((d.polygon[0].x + d.polygon[1].x) / 2)
                     a_bottom_center_y = int((d.polygon[0].y + d.polygon[1].y) / 2)
 
-                if d.data == b'B' or d.data == b'C':
+                if d.data == b'B' or d.data == b'C' or d.data == b'D':
                     if d.data == b'C':
                         scale = 'HO'
+                    elif d.data == b'd':
+                        scale = 'Z'
                     b_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
                     b_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
                     b_top = d.rect.top
@@ -222,9 +224,10 @@ def MeasureSpeed(cap):
             qr_length = 0.15
             if scale == 'N':
                 kph = int((qr_length / passing_time) * 3.6 * 150)
-            else:
-                # HO
+            elif scale == 'HO':
                 kph = int((qr_length / passing_time) * 3.6 * 80)
+            else: # Z
+                kph = int((qr_length / passing_time) * 3.6 * 220)
             print(f'時速{kph}キロメートルです')
             speak(f'時速{kph}キロメートルです')
             break

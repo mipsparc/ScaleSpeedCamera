@@ -16,8 +16,13 @@ Linux, Windows 10 64bitでの動作が確認されています。
 MITライセンスとします。
 
 ## Linuxで動かす場合
+Python3がはじめから入っているUbuntuなどでは、
+$ sudo apt-get install libzbar0
+$ pip3 install opencv-contrib-python
+$ pip3 install pyzbar
+で動くはずです。発話をするなら
 $ sudo apt-get install open-jtalk open-jtalk-mecab-naist-jdic hts-voice-nitech-jp-atr503-m001
-として、発話を準備する必要があります。
+をする必要があります。
 
 ## 作者
 mipsparc
