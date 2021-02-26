@@ -80,6 +80,7 @@ cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 cap.set(cv2.CAP_PROP_FPS, camera_fps)
+cap.set(cv2.CAP_PROP_CONTRAST, 150)
 
 print('起動しました')
 
@@ -91,10 +92,12 @@ def MeasureSpeed(cap):
     passed_a_time = None
     passed_b_time = None
     cnt_qr = 0
-    last_time = time.time()
+    last_time = 0
     
     # 列車が去るまで(rectがなくなるまで)なにもしない。30フレーム数える
     is_still = 30
+    
+    qr_save_cnt = 0
     
     while True:     
         if OS == 'Windows':
@@ -106,12 +109,17 @@ def MeasureSpeed(cap):
         if ret == False:
             continue
             
-        if cnt_qr % 5 == 0:
+        if cnt_qr % 5 == 0 or not (a_center and b_center):
             qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
-            if qrdata == []:
-                a_center = None
-                b_center = None
-            
+            if len(qrdata) < 2:
+                qr_save_cnt -= 1
+                if qr_save_cnt <= 0:
+                    a_center = None
+                    b_center = None
+                    qr_save_cnt = 30
+            else:
+                qr_save_cnt = 30
+
             scale = 'N'
             for d in qrdata:
                 if d.data == b'A':
@@ -157,7 +165,6 @@ def MeasureSpeed(cap):
         
         max_x = 0
         min_x = 99999
-        max_x_rect = []
         for i in range(0, len(contours)):
             if len(contours[i]) > 0:
                 # 小さいオブジェクトを除去する
@@ -170,7 +177,7 @@ def MeasureSpeed(cap):
                 # 範囲外を無視する
                 if y > int((a_top + b_top) / 2):
                     continue
-                if y + h < a_top - 200:
+                if y + h < a_top - 300:
                     continue
                 
                 #線路の微妙な部分を排除する
@@ -181,36 +188,33 @@ def MeasureSpeed(cap):
                 
                 max_x = int(max(max_x, x + w))
                 if max_x == x + w:
-                    max_x_rect = [x, y]
+                    max_x = x
                 min_x = int(min(min_x, x))
                 if min_x == x:
-                    min_x_rect = [x, y]
+                    min_x = x
+                    min_x_bottom = y + h
         
-        if len(max_x_rect) > 0:
+        if max_x != 0:
             if train_from is None and is_still <= 0:                        
-                if a_center < max_x_rect[0] < (a_center + b_center) / 2:
-                    if a_top > max_x_rect[1] > a_top - 200:
-                        train_from = 'left'
-                        passed_a_time = time.time()
-                        print('left')
-                elif (a_center + b_center) / 2 < min_x_rect[0] < b_center:
-                    if b_top > min_x_rect[1] > a_top - 200:
-                        train_from = 'right'
-                        passed_b_time = time.time()
-                        print('right')
+                if a_center < max_x < (a_center + b_center) / 2:
+                    train_from = 'left'
+                    passed_a_time = time.time()
+                    print('from left')
+                elif (a_center + b_center) / 2 < min_x < b_center:
+                    train_from = 'right'
+                    passed_b_time = time.time()
+                    print('from right')
             
             if train_from == 'left' and passed_a_time + 0.5 < time.time():
                 if passed_b_time is None:
-                    if max_x_rect[0] > b_center:
-                        if b_top > max_x_rect[1] > a_top - 200:
-                            print('passed left')
-                            passed_b_time = time.time()
+                    if max_x > b_center:
+                        print('passed right')
+                        passed_b_time = time.time()
             elif train_from == 'right' and passed_b_time + 0.5 < time.time():
                 if passed_a_time is None:
-                    if a_center > min_x_rect[0]:
-                        if a_top > min_x_rect[1] > a_top - 200:
-                            print('passed right')
-                            passed_a_time = time.time()
+                    if a_center > min_x:
+                        print('passed left')
+                        passed_a_time = time.time()
                             
             if passed_a_time and (time.time() > passed_a_time + 6):
                 break
@@ -235,7 +239,7 @@ def MeasureSpeed(cap):
         cv2.line(frame, (a_bottom_center, a_bottom_center_y), (a_bottom_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (b_bottom_center, b_bottom_center_y), (b_bottom_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
-        cv2.line(frame, (0, a_top - 200), (2000, b_top - 200), (255, 0, 0), 3)
+        cv2.line(frame, (0, a_top - 300), (2000, b_top - 300), (255, 0, 0), 3)
         
         cv2.imshow('ScaleSpeedCamera',frame)
 
