@@ -132,7 +132,7 @@ def MeasureSpeed(cap):
                 if d.data == b'B' or d.data == b'C' or d.data == b'D':
                     if d.data == b'C':
                         scale = 'HO'
-                    elif d.data == b'd':
+                    elif d.data == b'D':
                         scale = 'Z'
                     b_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
                     b_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
