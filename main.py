@@ -8,13 +8,6 @@ import time
 import platform
 import urllib.request
 import json
-import tempfile
-import subprocess
-
-OS = platform.system()
-if OS == 'Windows':
-    import win32com.client as wincl
-    voice = wincl.Dispatch("SAPI.SpVoice")
 
 # リリースバージョン
 version = 1.05
@@ -41,6 +34,13 @@ print('ScaleSpeedCamera (鉄道模型車速計測ソフト) by mipsparc')
 print(f'バージョン{version}')
 print('起動中です。しばらくお待ちください……''')
 
+OS = platform.system()
+if OS == 'Windows':
+    import win32com.client as wincl
+    voice = wincl.Dispatch("SAPI.SpVoice")
+
+import subprocess
+import tempfile
 @contextmanager
 def stderr_redirected(to=os.devnull):
     fd = sys.stderr.fileno()
@@ -82,6 +82,10 @@ def changeRectSize(num):
     global rect_size
     rect_size = num
 
+def changeWeight(num):
+    global weight
+    weight = max((num + 1) / 10 - 0.1, 0.1)
+
 camera_id_max = -1
 for camera_id in range(4, -1, -1):
     with stderr_redirected():
@@ -120,6 +124,8 @@ changeContrast(80)
 cv2.createTrackbar('Contrast', 'ScaleSpeedCamera', 80 , 300, changeContrast)
 changeRectSize(150)
 cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 50 , 300, changeRectSize)
+changeWeight(3)
+cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 3 , 5, changeWeight)
 
 last_kph = None
 
@@ -134,6 +140,7 @@ def MeasureSpeed(cap):
     last_time = 0
     global last_kph
     global rect_size
+    global weight
     
     # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
     is_still = 20
@@ -196,7 +203,7 @@ def MeasureSpeed(cap):
             avg = frame.copy().astype("float")
             continue
 
-        cv2.accumulateWeighted(frame, avg, 0.4)
+        cv2.accumulateWeighted(frame, avg, weight)
         frameDelta = cv2.absdiff(frame, cv2.convertScaleAbs(avg))
         thresh = cv2.threshold(frameDelta, 40, 255, cv2.THRESH_TOZERO)[1]
         
@@ -257,9 +264,9 @@ def MeasureSpeed(cap):
                         print('左を通過しました')
                         passed_a_time = time.time()
                             
-            if passed_a_time and (time.time() > passed_a_time + 7):
+            if passed_a_time and (time.time() > passed_a_time + (15 - (weight-0.1) * 20)):
                 break
-            if passed_b_time and (time.time() > passed_b_time + 7):
+            if passed_b_time and (time.time() > passed_b_time + (15 - (weight-0.1) * 20)):
                 break
         else:
             is_still -= 1
