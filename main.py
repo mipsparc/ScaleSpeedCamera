@@ -77,10 +77,6 @@ def show(cv, frame):
         
 def changeContrast(num):
     cap.set(cv2.CAP_PROP_CONTRAST, num)
-    
-def changeSpeedParam(num):
-    global weight
-    weight = (num + 1) / 10.0
 
 def changeRectSize(num):
     global rect_size
@@ -106,11 +102,8 @@ if camera_id_max > 0:
     camera_id_selected = int(input('カメラID(数字)を入力してEnter> '))
 else:
     camera_id_selected = camera_id_max
-    
-if OS == 'Windows':
-    cap = cv2.VideoCapture(camera_id_selected + cv2.CAP_DSHOW)
-else:
-    cap = cv2.VideoCapture(camera_id_selected)
+
+cap = cv2.VideoCapture(camera_id_selected)
 
 camera_width = 1280
 camera_height = 720
@@ -125,10 +118,8 @@ print()
 cv2.namedWindow('ScaleSpeedCamera')
 changeContrast(80)
 cv2.createTrackbar('Contrast', 'ScaleSpeedCamera', 80 , 300, changeContrast)
-changeSpeedParam(4)
-cv2.createTrackbar('SpeedParam', 'ScaleSpeedCamera', 3 , 8, changeSpeedParam)
 changeRectSize(150)
-cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 150 , 300, changeRectSize)
+cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 50 , 300, changeRectSize)
 
 last_kph = None
 
@@ -142,11 +133,10 @@ def MeasureSpeed(cap):
     cnt_qr = 0
     last_time = 0
     global last_kph
-    global weight
     global rect_size
     
-    # 列車が去るまで(rectがなくなるまで)なにもしない。30フレーム数える
-    is_still = 30
+    # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
+    is_still = 20
     
     qr_save_cnt = 0
     
@@ -206,7 +196,7 @@ def MeasureSpeed(cap):
             avg = frame.copy().astype("float")
             continue
 
-        cv2.accumulateWeighted(frame, avg, weight)
+        cv2.accumulateWeighted(frame, avg, 0.4)
         frameDelta = cv2.absdiff(frame, cv2.convertScaleAbs(avg))
         thresh = cv2.threshold(frameDelta, 40, 255, cv2.THRESH_TOZERO)[1]
         
