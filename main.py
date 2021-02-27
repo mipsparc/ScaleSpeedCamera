@@ -128,7 +128,7 @@ cv2.createTrackbar('Contrast', 'ScaleSpeedCamera', 80 , 300, changeContrast)
 changeSpeedParam(4)
 cv2.createTrackbar('SpeedParam', 'ScaleSpeedCamera', 3 , 8, changeSpeedParam)
 changeRectSize(150)
-cv2.createTrackbar('MinRectSize', 'ScaleSpeedCamera', 150 , 300, changeRectSize)
+cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 150 , 300, changeRectSize)
 
 last_kph = None
 
