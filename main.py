@@ -8,6 +8,13 @@ import time
 import platform
 import urllib.request
 import json
+import tempfile
+import subprocess
+
+OS = platform.system()
+if OS == 'Windows':
+    import win32com.client as wincl
+    voice = wincl.Dispatch("SAPI.SpVoice")
 
 # リリースバージョン
 version = 1.05
@@ -34,13 +41,6 @@ print('ScaleSpeedCamera (鉄道模型車速計測ソフト) by mipsparc')
 print(f'バージョン{version}')
 print('起動中です。しばらくお待ちください……''')
 
-OS = platform.system()
-if OS == 'Windows':
-    import win32com.client as wincl
-    voice = wincl.Dispatch("SAPI.SpVoice")
-
-import subprocess
-import tempfile
 @contextmanager
 def stderr_redirected(to=os.devnull):
     fd = sys.stderr.fileno()
