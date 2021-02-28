@@ -1,4 +1,4 @@
-from pyzbar.pyzbar import decode, ZBarSymbol
+from pylibdmtx.pylibdmtx import decode
 import numpy as np
 import cv2
 import os
@@ -10,7 +10,7 @@ import urllib.request
 import json
 
 # リリースバージョン
-version = 1.05
+version = 1.06
 
 # 最新バージョン確認
 try:
@@ -138,14 +138,14 @@ def MeasureSpeed(cap):
     passed_b_time = None
     cnt_qr = 0
     last_time = 0
+    last_a_update = 0
+    last_b_update = 0
     global last_kph
     global rect_size
     global weight
     
     # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
     is_still = 20
-    
-    qr_save_cnt = 0
     
     while True:     
         if OS == 'Windows':
@@ -156,36 +156,37 @@ def MeasureSpeed(cap):
         
         if ret == False:
             continue
+        
+        # 5秒間バーコードを検出できなかったら初期化する
+        if last_a_update + 5 < time.time() or last_b_update + 5 < time.time():
+            a_center = None
+            b_center = None
+        
+        frame_width = frame.shape[1]
+        frame_height = frame.shape[0]
             
         if cnt_qr % 5 == 0 or not (a_center and b_center):
             cnt_qr = 1
-            qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
-            
-            # 一定回数2次元地点検知コードが認識できなかったらパラメータを初期化する
-            if len(qrdata) < 2:
-                qr_save_cnt -= 1
-                if qr_save_cnt <= 0:
-                    a_center = None
-                    b_center = None
-                    qr_save_cnt = 40
-            else:
-                qr_save_cnt = 40
+            codedata = decode(frame, timeout=100)
 
             scale = 'N'
-            for d in qrdata:
+            for d in codedata:
                 if d.data == b'A':
-                    a_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
-                    a_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
-                    a_top = d.rect.top
+                    a_center = int(d.rect.left + d.rect.width/2)
+                    a_center_y = frame_height - int(d.rect.top + d.rect.height/2)
+                    a_top = frame_height - d.rect.top - d.rect.height
+                    last_a_update = time.time()
 
                 if d.data == b'B' or d.data == b'C' or d.data == b'D':
                     if d.data == b'C':
                         scale = 'HO'
                     elif d.data == b'D':
                         scale = 'Z'
-                    b_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
-                    b_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
-                    b_top = d.rect.top
+                    b_center = int(d.rect.left + d.rect.width/2)
+                    b_center_y = frame_height - int(d.rect.top + d.rect.height/2)
+                    b_top = frame_height - d.rect.top - d.rect.height
+                    last_b_update = time.time()
+
         else:
             cnt_qr += 1
 
