@@ -1,4 +1,4 @@
-from pyzbar.pyzbar import decode, ZBarSymbol
+from pylibdmtx.pylibdmtx import decode
 import numpy as np
 import cv2
 import os
@@ -145,7 +145,8 @@ def MeasureSpeed(cap):
     # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
     is_still = 20
     
-    qr_save_cnt = 0
+    last_a_update = 0
+    last_b_update = 0
     
     while True:     
         if OS == 'Windows':
@@ -156,39 +157,37 @@ def MeasureSpeed(cap):
         
         if ret == False:
             continue
+        
+        frame_width = frame.shape[1]
+        frame_height = frame.shape[0]
+        
+        # 8秒間バーコードを検出できなかったら初期化する
+        if last_a_update + 8 < time.time() or last_b_update + 8 < time.time():
+            a_center = None
+            b_center = None
             
-        if cnt_qr % 5 == 0 or not (a_center and b_center):
-            qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
-            if len(qrdata) < 2:
-                qr_save_cnt -= 1
-                if qr_save_cnt <= 0:
-                    a_center = None
-                    b_center = None
-                    qr_save_cnt = 40
-            else:
-                qr_save_cnt = 40
+        if cnt_qr % 10 == 0 or not (a_center and b_center):
+            cnt_qr = 1
+            codedata = decode(frame, timeout=100)
+            print(codedata)
 
             scale = 'N'
-            for d in qrdata:
+            for d in codedata:
                 if d.data == b'A':
-                    a_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
-                    a_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
-                    a_top = d.rect.top
-                    a_bottom_center = int((d.polygon[0].x + d.polygon[1].x) / 2)
-                    a_bottom_center_y = int((d.polygon[0].y + d.polygon[1].y) / 2)
+                    a_center = int(d.rect.left + d.rect.width/2)
+                    a_center_y = frame_height - int(d.rect.top + d.rect.height/2)
+                    a_top = frame_height - d.rect.top - d.rect.height
+                    last_a_update = time.time()
 
                 if d.data == b'B' or d.data == b'C' or d.data == b'D':
                     if d.data == b'C':
                         scale = 'HO'
                     elif d.data == b'D':
                         scale = 'Z'
-                    b_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
-                    b_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
-                    b_top = d.rect.top
-                    b_bottom_center = int((d.polygon[1].x + d.polygon[2].x) / 2)
-                    b_bottom_center_y = int((d.polygon[1].y + d.polygon[2].y) / 2)
-            
-            cnt_qr = 1
+                    b_center = int(d.rect.left + d.rect.width/2)
+                    b_center_y = frame_height - int(d.rect.top + d.rect.height/2)
+                    b_top = frame_height - d.rect.top - d.rect.height
+                    last_b_update = time.time()
         else:
             cnt_qr += 1
 
@@ -289,8 +288,8 @@ def MeasureSpeed(cap):
             text_area =  cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 3, 3)[0]
             cv2.rectangle(frame, (0, 0), (text_area[0] + 70, text_area[1] + 40), (150, 150 , 150), -1)
             cv2.putText(frame, f'{last_kph}km/h', (35, text_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 3, (0, 255, 0), 3)
-        cv2.line(frame, (a_bottom_center, a_bottom_center_y), (a_bottom_center, 0), (255, 0, 0), 3)
-        cv2.line(frame, (b_bottom_center, b_bottom_center_y), (b_bottom_center, 0), (255, 0, 0), 3)
+        cv2.line(frame, (a_center, a_center_y), (a_center, 0), (255, 0, 0), 3)
+        cv2.line(frame, (b_center, b_center_y), (b_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
         cv2.line(frame, (0, a_top - 300), (2000, b_top - 300), (255, 0, 0), 3)
         show(cv2, frame)
