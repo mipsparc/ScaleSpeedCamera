@@ -17,11 +17,12 @@ MITライセンスとします。
 
 ## Linuxで動かす場合
 Python3がはじめから入っているUbuntuなどでは、
-$ sudo apt-get install libzbar0
-$ pip3 install opencv-contrib-python
-$ pip3 install pyzbar
+- $ sudo apt-get install libdmtx0b
+- $ pip3 install pylibdmtx
+- $ pip3 install opencv-contrib-python
+- $ pip3 install pyzbar
 で動くはずです。発話をするなら
-$ sudo apt-get install open-jtalk open-jtalk-mecab-naist-jdic hts-voice-nitech-jp-atr503-m001
+- $ sudo apt-get install open-jtalk open-jtalk-mecab-naist-jdic hts-voice-nitech-jp-atr503-m001
 をする必要があります。
 
 ## 作者
