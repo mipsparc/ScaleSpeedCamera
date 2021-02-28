@@ -165,7 +165,7 @@ def MeasureSpeed(cap):
         frame_width = frame.shape[1]
         frame_height = frame.shape[0]
             
-        if cnt_qr % 5 == 0 or not (a_center and b_center):
+        if cnt_qr % 10 == 0 or not (a_center and b_center):
             cnt_qr = 1
             codedata = decode(frame, timeout=100)
 
