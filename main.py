@@ -158,7 +158,10 @@ def MeasureSpeed(cap):
             continue
             
         if cnt_qr % 5 == 0 or not (a_center and b_center):
+            cnt_qr = 1
             qrdata = decode(frame, symbols=[ZBarSymbol.QRCODE])
+            
+            # 一定回数2次元地点検知コードが認識できなかったらパラメータを初期化する
             if len(qrdata) < 2:
                 qr_save_cnt -= 1
                 if qr_save_cnt <= 0:
@@ -174,8 +177,6 @@ def MeasureSpeed(cap):
                     a_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
                     a_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
                     a_top = d.rect.top
-                    a_bottom_center = int((d.polygon[0].x + d.polygon[1].x) / 2)
-                    a_bottom_center_y = int((d.polygon[0].y + d.polygon[1].y) / 2)
 
                 if d.data == b'B' or d.data == b'C' or d.data == b'D':
                     if d.data == b'C':
@@ -185,16 +186,12 @@ def MeasureSpeed(cap):
                     b_center = int((d.polygon[0].x + d.polygon[1].x + d.polygon[2].x + d.polygon[3].x) / 4)
                     b_center_y = int((d.polygon[0].y + d.polygon[1].y + d.polygon[2].y + d.polygon[3].y) / 4)
                     b_top = d.rect.top
-                    b_bottom_center = int((d.polygon[1].x + d.polygon[2].x) / 2)
-                    b_bottom_center_y = int((d.polygon[1].y + d.polygon[2].y) / 2)
-            
-            cnt_qr = 1
         else:
             cnt_qr += 1
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # QRコードが認識できなかった場合
+        # 2次元地点検知コードが認識できなかった場合
         if not (a_center and b_center):
             show(cv2, frame)
             continue
@@ -289,8 +286,8 @@ def MeasureSpeed(cap):
             text_area =  cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 3, 3)[0]
             cv2.rectangle(frame, (0, 0), (text_area[0] + 70, text_area[1] + 40), (150, 150 , 150), -1)
             cv2.putText(frame, f'{last_kph}km/h', (35, text_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 3, (0, 255, 0), 3)
-        cv2.line(frame, (a_bottom_center, a_bottom_center_y), (a_bottom_center, 0), (255, 0, 0), 3)
-        cv2.line(frame, (b_bottom_center, b_bottom_center_y), (b_bottom_center, 0), (255, 0, 0), 3)
+        cv2.line(frame, (a_center, a_center_y), (a_center, 0), (255, 0, 0), 3)
+        cv2.line(frame, (b_center, b_center_y), (b_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
         cv2.line(frame, (0, a_top - 300), (2000, b_top - 300), (255, 0, 0), 3)
         show(cv2, frame)
