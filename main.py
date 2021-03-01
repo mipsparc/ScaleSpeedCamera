@@ -85,6 +85,10 @@ def changeRectSize(num):
 def changeWeight(num):
     global weight
     weight = max((num + 1) / 10 - 0.1, 0.1)
+    
+def changeHeight(num):
+    global area_height
+    area_height = num
 
 camera_id_max = -1
 for camera_id in range(4, -1, -1):
@@ -130,6 +134,8 @@ changeRectSize(150)
 cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 150 , 300, changeRectSize)
 changeWeight(3)
 cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 3 , 5, changeWeight)
+changeHeight(300)
+cv2.createTrackbar('Height', 'ScaleSpeedCamera', 300, 400, changeHeight)
 
 last_kph = None
 
@@ -231,7 +237,7 @@ def MeasureSpeed(cap):
                 # 範囲外を無視する
                 if y > int((a_top + b_top) / 2):
                     continue
-                if y + h < a_top - 300:
+                if y + h < a_top - area_height:
                     continue
                 
                 #線路の微妙な部分を排除する
@@ -313,7 +319,7 @@ def MeasureSpeed(cap):
         cv2.line(frame, (a_center, a_center_y), (a_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (b_center, b_center_y), (b_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
-        cv2.line(frame, (0, a_top - 300), (2000, b_top - 300), (255, 0, 0), 3)
+        cv2.line(frame, (0, a_top - area_height), (2000, b_top - area_height), (255, 0, 0), 3)
         show(cv2, frame)
 
 while (cap.isOpened()):
