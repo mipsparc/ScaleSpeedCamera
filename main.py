@@ -118,7 +118,7 @@ cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 cap.set(cv2.CAP_PROP_FPS, camera_fps)
 real_cam_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 real_cam_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-real_cam_fps = int(cap.get(cv2.CAP_PROP_FPS)
+real_cam_fps = int(cap.get(cv2.CAP_PROP_FPS))
 print(f'{real_cam_w}x{real_cam_h} {real_cam_fps}fps')
 print('カメラの初期化が完了しました')
 print()
@@ -144,12 +144,18 @@ def MeasureSpeed(cap):
     last_time = 0
     last_a_update = 0
     last_b_update = 0
+    fps = None
     global last_kph
     global rect_size
     global weight
     
     # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
     is_still = 20
+    
+    # fps計測
+    tm = cv2.TickMeter()
+    tm.start()
+    cnt_fps = 10
     
     while True:     
         if OS == 'Windows':
@@ -288,9 +294,22 @@ def MeasureSpeed(cap):
             break
 
         if last_kph:
-            text_area =  cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 3, 3)[0]
-            cv2.rectangle(frame, (0, 0), (text_area[0] + 70, text_area[1] + 40), (150, 150 , 150), -1)
-            cv2.putText(frame, f'{last_kph}km/h', (35, text_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 3, (0, 255, 0), 3)
+            kph_area = cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
+            cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+            cv2.putText(frame, f'{last_kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (0, 255, 0), 2)
+        
+        if cnt_fps <= 0:
+            tm.stop()
+            fps = int(1.0 / (tm.getTimeSec() / 10.0))
+            fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
+            tm.reset()
+            tm.start()
+            cnt_fps = 10
+        else:
+            cnt_fps -= 1
+        
+        if fps:
+            cv2.putText(frame, f'{fps}fps', (35, fps_area[1] + 100), cv2.FONT_HERSHEY_DUPLEX, 1, (255, 255, 255), 1)
         cv2.line(frame, (a_center, a_center_y), (a_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (b_center, b_center_y), (b_center, 0), (255, 0, 0), 3)
         cv2.line(frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
