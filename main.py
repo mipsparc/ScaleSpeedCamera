@@ -111,12 +111,16 @@ cap = cv2.VideoCapture(camera_id_selected)
 
 camera_width = 1280
 camera_height = 720
-camera_fps = 30
+camera_fps = 60
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 cap.set(cv2.CAP_PROP_FPS, camera_fps)
-print('起動しました')
+real_cam_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+real_cam_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+real_cam_fps = int(cap.get(cv2.CAP_PROP_FPS)
+print(f'{real_cam_w}x{real_cam_h} {real_cam_fps}fps')
+print('カメラの初期化が完了しました')
 print()
 
 cv2.namedWindow('ScaleSpeedCamera')
