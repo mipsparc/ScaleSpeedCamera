@@ -128,8 +128,8 @@ print('カメラの初期化が完了しました')
 print()
 
 cv2.namedWindow('ScaleSpeedCamera')
-changeContrast(80)
-cv2.createTrackbar('Contrast', 'ScaleSpeedCamera', 80 , 300, changeContrast)
+changeContrast(50)
+cv2.createTrackbar('Contrast', 'ScaleSpeedCamera', 50 , 300, changeContrast)
 changeRectSize(150)
 cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 150 , 300, changeRectSize)
 changeWeight(3)
@@ -166,7 +166,9 @@ def MeasureSpeed(cap):
     tm.start()
     cnt_fps = 10
     
-    while True:     
+    detect_wait_cnt = 10
+    
+    while True:
         if OS == 'Windows':
             ret, frame = cap.read()
         else:
@@ -174,7 +176,19 @@ def MeasureSpeed(cap):
                 ret, frame = cap.read()
         
         if ret == False:
+            print('retfalse')
             continue
+        
+        if cnt_fps <= 0:
+            tm.stop()
+            fps = int(1.0 / (tm.getTimeSec() / 10.0))
+            print(fps)
+            fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
+            tm.reset()
+            tm.start()
+            cnt_fps = 10
+        else:
+            cnt_fps -= 1
         
         # 5秒間バーコードを検出できなかったら初期化する
         if last_a_update + 5 < time.time() or last_b_update + 5 < time.time():
@@ -183,10 +197,24 @@ def MeasureSpeed(cap):
         
         frame_width = frame.shape[1]
         frame_height = frame.shape[0]
-            
-        if cnt_qr % 10 == 0 or not (a_center and b_center):
+        
+        # ボケの程度が高かったらつかわない
+        blurlevel = cv2.Laplacian(frame, cv2.CV_64F).var()
+        if blurlevel < 200:
+            show(cv2, frame)
+            continue
+        
+        frame_for_2d = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        if cnt_qr % 15 == 0 or not (a_center and b_center):
             cnt_qr = 1
-            codedata = decode(frame, timeout=100)
+            
+            #frame_for_2d = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]], np.float32)
+            frame_for_2d = cv2.filter2D(frame, -1, kernel)
+            #frame_for_2d = cv2.threshold(frame_for_2d, 170, 255, cv2.THRESH_BINARY)[1]
+            
+            codedata = decode(frame_for_2d, timeout=100)
 
             scale = 'N'
             for d in codedata:
@@ -205,14 +233,19 @@ def MeasureSpeed(cap):
                     b_center_y = frame_height - int(d.rect.top + d.rect.height/2)
                     b_top = frame_height - d.rect.top - d.rect.height
                     last_b_update = time.time()
-
         else:
             cnt_qr += 1
             
         # 2次元地点検知コードが認識できなかった場合
         if not (a_center and b_center):
             show(cv2, frame)
+            detect_wait_cnt = 10
             continue
+        else:
+            #認識し始めから検出まで10フレーム待つ
+            if detect_wait_cnt > 0:
+                detect_wait_cnt -= 1
+                continue
                     
         # 検出域を制限する
         detect_area_top = max(int((a_top + b_top) / 2) - next_area_height, 1)
@@ -272,10 +305,12 @@ def MeasureSpeed(cap):
                     train_from = 'left'
                     passed_a_time = time.time()
                     print('列車が左から来ました')
+                    first_pass_frame = frame
                 elif (a_center + b_center) / 2 < min_x_x - min_x_w < b_center:
                     train_from = 'right'
                     passed_b_time = time.time()
                     print('列車が右から来ました')
+                    first_pass_frame = frame
             
             if train_from == 'left' and passed_a_time + 0.5 < time.time():
                 if passed_b_time is None:
@@ -307,22 +342,16 @@ def MeasureSpeed(cap):
             print(f'時速{kph}キロメートルです')
             speak(f'時速{kph}キロメートルです')
             last_kph = kph
+            first_passed_time = min(passed_a_time, passed_b_time)
+            passed_time = max(passed_a_time, passed_b_time)
+            cv2.imwrite(f'pass_{first_passed_time}.jpg', first_pass_frame)
+            cv2.imwrite(f'pass_{passed_time}.jpg', frame)
             break
 
         if last_kph:
             kph_area = cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
             cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-            cv2.putText(frame, f'{last_kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (0, 255, 0), 2)
-        
-        if cnt_fps <= 0:
-            tm.stop()
-            fps = int(1.0 / (tm.getTimeSec() / 10.0))
-            fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
-            tm.reset()
-            tm.start()
-            cnt_fps = 10
-        else:
-            cnt_fps -= 1
+            cv2.putText(frame, f'{last_kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
         
         if fps:
             cv2.putText(frame, f'{fps}fps', (35, fps_area[1] + 100), cv2.FONT_HERSHEY_DUPLEX, 1, (255, 255, 255), 1)
