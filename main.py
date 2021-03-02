@@ -10,7 +10,7 @@ import urllib.request
 import json
 
 # リリースバージョン
-version = 1.06
+version = 1.07
 
 # 最新バージョン確認
 try:
