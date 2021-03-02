@@ -87,8 +87,8 @@ def changeWeight(num):
     weight = max((num + 1) / 10 - 0.1, 0.1)
     
 def changeHeight(num):
-    global area_height
-    area_height = num
+    global next_area_height
+    next_area_height = num
 
 camera_id_max = -1
 for camera_id in range(4, -1, -1):
@@ -151,6 +151,9 @@ def MeasureSpeed(cap):
     last_a_update = 0
     last_b_update = 0
     fps = None
+    
+    last_detect_area_height = next_area_height
+    
     global last_kph
     global rect_size
     global weight
@@ -205,20 +208,30 @@ def MeasureSpeed(cap):
 
         else:
             cnt_qr += 1
-
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
+            
         # 2次元地点検知コードが認識できなかった場合
         if not (a_center and b_center):
             show(cv2, frame)
             continue
+                    
+        # 検出域を制限する
+        detect_area_top = max(int((a_top + b_top) / 2) - next_area_height, 1)
+        detect_area_bottom = int((a_top + b_top) / 2)
+        detect_area_left = 0
+        detect_area_right = real_cam_w
+        detect_area = frame[detect_area_top:detect_area_bottom, detect_area_left:detect_area_right]
+        detect_area_height = detect_area_top - detect_area_bottom
 
-        if avg is None:
-            avg = frame.copy().astype("float")
+        detect_area = cv2.cvtColor(detect_area, cv2.COLOR_BGR2GRAY)
+
+        if avg is None or area_height != next_area_height or detect_area_height != last_detect_area_height:
+            avg = detect_area.copy().astype("float")
+            area_height = next_area_height
+            last_detect_area_height = detect_area_height
             continue
 
-        cv2.accumulateWeighted(frame, avg, weight)
-        frameDelta = cv2.absdiff(frame, cv2.convertScaleAbs(avg))
+        cv2.accumulateWeighted(detect_area, avg, weight)
+        frameDelta = cv2.absdiff(detect_area, cv2.convertScaleAbs(avg))
         thresh = cv2.threshold(frameDelta, 40, 255, cv2.THRESH_TOZERO)[1]
         
         contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -234,47 +247,44 @@ def MeasureSpeed(cap):
                 rect = contours[i]
                 x, y, w, h = cv2.boundingRect(rect)
                 
-                # 範囲外を無視する
-                if y > int((a_top + b_top) / 2):
-                    continue
-                if y + h < a_top - area_height:
-                    continue
-                
                 #線路の微妙な部分を排除する
-                if h < 10:
+                if h < 15:
                     continue
                 if w > 100:
                     continue
+                    
+                y += detect_area_top
                 
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 5)
                 
                 max_x = int(max(max_x, x + w))
                 if max_x == x + w:
-                    max_x = x
+                    max_x_x = x
+                    max_x_w = w
                 min_x = int(min(min_x, x))
                 if min_x == x:
-                    min_x = x
-                    min_x_bottom = y + h
+                    min_x_x = x
+                    min_x_w = w
         
         if max_x != 0:
             if train_from is None and is_still <= 0:                        
-                if a_center < max_x < (a_center + b_center) / 2:
+                if a_center < max_x_x + max_x_w < (a_center + b_center) / 2:
                     train_from = 'left'
                     passed_a_time = time.time()
                     print('列車が左から来ました')
-                elif (a_center + b_center) / 2 < min_x < b_center:
+                elif (a_center + b_center) / 2 < min_x_x - min_x_w < b_center:
                     train_from = 'right'
                     passed_b_time = time.time()
                     print('列車が右から来ました')
             
             if train_from == 'left' and passed_a_time + 0.5 < time.time():
                 if passed_b_time is None:
-                    if max_x > b_center:
+                    if max_x_x + max_x_w > b_center:
                         print('右を通過しました')
                         passed_b_time = time.time()
             elif train_from == 'right' and passed_b_time + 0.5 < time.time():
                 if passed_a_time is None:
-                    if a_center > min_x:
+                    if a_center > min_x - min_x_w:
                         print('左を通過しました')
                         passed_a_time = time.time()
                             
