@@ -8,6 +8,9 @@ import time
 import platform
 import urllib.request
 import json
+import subprocess
+import tempfile
+import fcntl
 
 # リリースバージョン
 version = 1.07
@@ -39,8 +42,6 @@ if OS == 'Windows':
     import win32com.client as wincl
     voice = wincl.Dispatch("SAPI.SpVoice")
 
-import subprocess
-import tempfile
 @contextmanager
 def stderr_redirected(to=os.devnull):
     fd = sys.stderr.fileno()
@@ -67,7 +68,7 @@ def speak(speech_text):
     if OS == 'Windows':
         voice.Speak(speech_text)
     else:
-        subprocess.run(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
+        subprocess.Popen(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
 
 def show(cv, frame):
     cv.imshow('ScaleSpeedCamera',frame)
@@ -111,6 +112,8 @@ if camera_id_max > 0:
 else:
     camera_id_selected = camera_id_max
 
+cv2.namedWindow('ScaleSpeedCamera')
+
 cap = cv2.VideoCapture(camera_id_selected)
 
 camera_width = 1280
@@ -124,12 +127,13 @@ real_cam_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 real_cam_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 real_cam_fps = int(cap.get(cv2.CAP_PROP_FPS))
 print(f'{real_cam_w}x{real_cam_h} {real_cam_fps}fps')
+
+changeContrast(50)
+cv2.createTrackbar('Contrast', 'ScaleSpeedCamera', 50 , 300, changeContrast)
+
 print('カメラの初期化が完了しました')
 print()
 
-cv2.namedWindow('ScaleSpeedCamera')
-changeContrast(50)
-cv2.createTrackbar('Contrast', 'ScaleSpeedCamera', 50 , 300, changeContrast)
 changeRectSize(150)
 cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 150 , 300, changeRectSize)
 changeWeight(3)
@@ -151,38 +155,37 @@ def MeasureSpeed(cap):
     last_a_update = 0
     last_b_update = 0
     fps = None
-    
+
     last_detect_area_height = next_area_height
-    
+
     global last_kph
     global rect_size
     global weight
-    
+
     # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
     is_still = 20
-    
+
     # fps計測
     tm = cv2.TickMeter()
     tm.start()
     cnt_fps = 10
-    
+
     detect_wait_cnt = 10
-    
+
     while True:
-        if OS == 'Windows':
-            ret, frame = cap.read()
-        else:
-            with stderr_redirected():
-                ret, frame = cap.read()
-        
+        ret, frame = cap.read()
         if ret == False:
-            print('retfalse')
             continue
+                    
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        h,s,v = cv2.split(hsv)
+        # https://qiita.com/s-kajioka/items/9c9fc6c0e9e8a9d05800
+        v = ( v - np.mean(v)) / np.std(v) * 30 + 90
+        frame = np.array(v, dtype=np.uint8)
         
         if cnt_fps <= 0:
             tm.stop()
             fps = int(1.0 / (tm.getTimeSec() / 10.0))
-            print(fps)
             fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
             tm.reset()
             tm.start()
@@ -194,19 +197,11 @@ def MeasureSpeed(cap):
         if last_a_update + 5 < time.time() or last_b_update + 5 < time.time():
             a_center = None
             b_center = None
-        
+
         frame_width = frame.shape[1]
         frame_height = frame.shape[0]
-        
-        # ボケの程度が高かったらつかわない
-        blurlevel = cv2.Laplacian(frame, cv2.CV_64F).var()
-        if blurlevel < 200:
-            show(cv2, frame)
-            continue
-        
-        frame_for_2d = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        if cnt_qr % 15 == 0 or not (a_center and b_center):
+
+        if cnt_qr % 15 == 0 or not (a_center and b_center):            
             cnt_qr = 1
             
             #frame_for_2d = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -254,8 +249,6 @@ def MeasureSpeed(cap):
         detect_area_right = real_cam_w
         detect_area = frame[detect_area_top:detect_area_bottom, detect_area_left:detect_area_right]
         detect_area_height = detect_area_top - detect_area_bottom
-
-        detect_area = cv2.cvtColor(detect_area, cv2.COLOR_BGR2GRAY)
 
         if avg is None or area_height != next_area_height or detect_area_height != last_detect_area_height:
             avg = detect_area.copy().astype("float")
@@ -347,6 +340,8 @@ def MeasureSpeed(cap):
             cv2.imwrite(f'pass_{first_passed_time}.jpg', first_pass_frame)
             cv2.imwrite(f'pass_{passed_time}.jpg', frame)
             break
+        
+        display_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
         if last_kph:
             kph_area = cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
@@ -361,5 +356,7 @@ def MeasureSpeed(cap):
         cv2.line(frame, (0, a_top - area_height), (2000, b_top - area_height), (255, 0, 0), 3)
         show(cv2, frame)
 
+
 while (cap.isOpened()):
     MeasureSpeed(cap)
+    
