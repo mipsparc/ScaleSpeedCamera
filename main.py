@@ -10,7 +10,7 @@ import urllib.request
 import json
 import subprocess
 import tempfile
-import fcntl
+from multiprocessing import Process
 
 # リリースバージョン
 version = 1.07
@@ -128,9 +128,6 @@ real_cam_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 real_cam_fps = int(cap.get(cv2.CAP_PROP_FPS))
 print(f'{real_cam_w}x{real_cam_h} {real_cam_fps}fps')
 
-changeContrast(50)
-cv2.createTrackbar('Contrast', 'ScaleSpeedCamera', 50 , 300, changeContrast)
-
 print('カメラの初期化が完了しました')
 print()
 
@@ -174,24 +171,27 @@ def MeasureSpeed(cap):
 
     while True:
         ret, frame = cap.read()
+        
         if ret == False:
             continue
-                    
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        h,s,v = cv2.split(hsv)
-        # https://qiita.com/s-kajioka/items/9c9fc6c0e9e8a9d05800
-        v = ( v - np.mean(v)) / np.std(v) * 30 + 90
-        frame = np.array(v, dtype=np.uint8)
         
         if cnt_fps <= 0:
             tm.stop()
             fps = int(1.0 / (tm.getTimeSec() / 10.0))
+            print(fps)
             fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
             tm.reset()
             tm.start()
             cnt_fps = 10
         else:
             cnt_fps -= 1
+            
+        # 明るさを平準化する
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        h,s,v = cv2.split(hsv)
+        # https://qiita.com/s-kajioka/items/9c9fc6c0e9e8a9d05800
+        v = ( v - np.mean(v)) / np.std(v) * 30 + 90
+        frame = np.array(v, dtype=np.uint8)
         
         # 5秒間バーコードを検出できなかったら初期化する
         if last_a_update + 5 < time.time() or last_b_update + 5 < time.time():
@@ -201,15 +201,13 @@ def MeasureSpeed(cap):
         frame_width = frame.shape[1]
         frame_height = frame.shape[0]
 
-        if cnt_qr % 15 == 0 or not (a_center and b_center):            
+        if cnt_qr % 20 == 0 or not (a_center and b_center):            
             cnt_qr = 1
             
-            #frame_for_2d = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]], np.float32)
             frame_for_2d = cv2.filter2D(frame, -1, kernel)
-            #frame_for_2d = cv2.threshold(frame_for_2d, 170, 255, cv2.THRESH_BINARY)[1]
             
-            codedata = decode(frame_for_2d, timeout=100)
+            codedata = decode(frame_for_2d, timeout=150)
 
             scale = 'N'
             for d in codedata:
@@ -333,28 +331,28 @@ def MeasureSpeed(cap):
             else: # Z
                 kph = int((qr_length / passing_time) * 3.6 * 220)
             print(f'時速{kph}キロメートルです')
-            speak(f'時速{kph}キロメートルです')
+            #speak(f'時速{kph}キロメートルです')
             last_kph = kph
             first_passed_time = min(passed_a_time, passed_b_time)
             passed_time = max(passed_a_time, passed_b_time)
-            cv2.imwrite(f'pass_{first_passed_time}.jpg', first_pass_frame)
-            cv2.imwrite(f'pass_{passed_time}.jpg', frame)
+            #cv2.imwrite(f'pass_{first_passed_time}.jpg', first_pass_frame)
+            #cv2.imwrite(f'pass_{passed_time}.jpg', frame)
             break
         
         display_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
         if last_kph:
             kph_area = cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
-            cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-            cv2.putText(frame, f'{last_kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+            cv2.rectangle(display_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+            cv2.putText(display_frame, f'{last_kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
         
         if fps:
-            cv2.putText(frame, f'{fps}fps', (35, fps_area[1] + 100), cv2.FONT_HERSHEY_DUPLEX, 1, (255, 255, 255), 1)
-        cv2.line(frame, (a_center, a_center_y), (a_center, 0), (255, 0, 0), 3)
-        cv2.line(frame, (b_center, b_center_y), (b_center, 0), (255, 0, 0), 3)
-        cv2.line(frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
-        cv2.line(frame, (0, a_top - area_height), (2000, b_top - area_height), (255, 0, 0), 3)
-        show(cv2, frame)
+            cv2.putText(display_frame, f'{fps}fps', (35, fps_area[1] + 100), cv2.FONT_HERSHEY_DUPLEX, 1, (255, 255, 255), 1)
+        cv2.line(display_frame, (a_center, a_center_y), (a_center, 0), (255, 0, 0), 3)
+        cv2.line(display_frame, (b_center, b_center_y), (b_center, 0), (255, 0, 0), 3)
+        cv2.line(display_frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
+        cv2.line(display_frame, (0, a_top - area_height), (2000, b_top - area_height), (255, 0, 0), 3)
+        show(cv2, display_frame)
 
 
 while (cap.isOpened()):
