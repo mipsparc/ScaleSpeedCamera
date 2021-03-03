@@ -380,7 +380,7 @@ if __name__ == '__main__':
         camera_id_selected = camera_id_max
     
     print('通過時の画像をピクチャフォルダに保存する場合はEnter')
-    save_photo = input('保存しない場合はNを入力してEnter > ') !== 'N'
+    save_photo = input('保存しない場合はNを入力してEnter > ') != 'N'
 
     cap = cv2.VideoCapture(camera_id_selected)
 
@@ -409,7 +409,7 @@ if __name__ == '__main__':
     scale_shared = Value('u', 'N')
     a_arr = Array('i', [-1, -1, -1])
     b_arr = Array('i', [-1, -1, -1])
-    measure_params = Array('i', [150, 3, 300])
+    measure_params = Array('i', [150, 3, 300, int(save_photo)])
 
     cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 50 , 300, WindowChange.changeRectSize)
     cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 3 , 5, WindowChange.changeWeight)
@@ -440,7 +440,6 @@ if __name__ == '__main__':
         measure_params[0] = WindowChange.rect_size
         measure_params[1] = WindowChange.weight
         measure_params[2] = WindowChange.area_height
-        measure_params[3] = save_photo
         
         try:
             boxes = box_q.get(False)
