@@ -10,7 +10,7 @@ import urllib.request
 import json
 import subprocess
 import tempfile
-from multiprocessing import Process
+from multiprocessing import Process, Queue, Array, Value
 
 # リリースバージョン
 version = 1.07
@@ -138,100 +138,49 @@ cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 3 , 5, changeWeight)
 changeHeight(300)
 cv2.createTrackbar('Height', 'ScaleSpeedCamera', 300, 400, changeHeight)
 
-last_kph = None
-
-def MeasureSpeed(cap):
-    a_center = None
-    b_center = None
+def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr):
     avg = None
     train_from = None
     passed_a_time = None
     passed_b_time = None
-    cnt_qr = 0
     last_time = 0
-    last_a_update = 0
-    last_b_update = 0
-    fps = None
 
+    #TODO
+    next_area_height = 300
     last_detect_area_height = next_area_height
 
-    global last_kph
-    global rect_size
-    global weight
+    #global rect_size
+    #global weight
+    rect_size = 150
+    weight = 0.4
 
     # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
     is_still = 20
 
-    # fps計測
-    tm = cv2.TickMeter()
-    tm.start()
-    cnt_fps = 10
-
     detect_wait_cnt = 10
 
     while True:
-        ret, frame = cap.read()
+        frame = frame_q.get(True, 1)
         
-        if ret == False:
-            continue
+        a_center = a_arr[0]
+        a_center_y = a_arr[1]
+        a_top = a_arr[2]
         
-        if cnt_fps <= 0:
-            tm.stop()
-            fps = int(1.0 / (tm.getTimeSec() / 10.0))
-            print(fps)
-            fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
-            tm.reset()
-            tm.start()
-            cnt_fps = 10
-        else:
-            cnt_fps -= 1
-            
+        b_center = b_arr[0]
+        b_center_y = b_arr[1]
+        b_top = b_arr[2]
+        
+        print(a_arr[0], b_arr[0])
+        
         # 明るさを平準化する
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         h,s,v = cv2.split(hsv)
         # https://qiita.com/s-kajioka/items/9c9fc6c0e9e8a9d05800
         v = ( v - np.mean(v)) / np.std(v) * 30 + 90
         frame = np.array(v, dtype=np.uint8)
-        
-        # 5秒間バーコードを検出できなかったら初期化する
-        if last_a_update + 5 < time.time() or last_b_update + 5 < time.time():
-            a_center = None
-            b_center = None
-
-        frame_width = frame.shape[1]
-        frame_height = frame.shape[0]
-
-        if cnt_qr % 20 == 0 or not (a_center and b_center):            
-            cnt_qr = 1
-            
-            kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]], np.float32)
-            frame_for_2d = cv2.filter2D(frame, -1, kernel)
-            
-            codedata = decode(frame_for_2d, timeout=150)
-
-            scale = 'N'
-            for d in codedata:
-                if d.data == b'A':
-                    a_center = int(d.rect.left + d.rect.width/2)
-                    a_center_y = frame_height - int(d.rect.top + d.rect.height/2)
-                    a_top = frame_height - d.rect.top - d.rect.height
-                    last_a_update = time.time()
-
-                if d.data == b'B' or d.data == b'C' or d.data == b'D':
-                    if d.data == b'C':
-                        scale = 'HO'
-                    elif d.data == b'D':
-                        scale = 'Z'
-                    b_center = int(d.rect.left + d.rect.width/2)
-                    b_center_y = frame_height - int(d.rect.top + d.rect.height/2)
-                    b_top = frame_height - d.rect.top - d.rect.height
-                    last_b_update = time.time()
-        else:
-            cnt_qr += 1
             
         # 2次元地点検知コードが認識できなかった場合
-        if not (a_center and b_center):
-            show(cv2, frame)
+        if a_center == -1 or b_center == -1:
             detect_wait_cnt = 10
             continue
         else:
@@ -239,16 +188,16 @@ def MeasureSpeed(cap):
             if detect_wait_cnt > 0:
                 detect_wait_cnt -= 1
                 continue
-                    
-        # 検出域を制限する
-        detect_area_top = max(int((a_top + b_top) / 2) - next_area_height, 1)
-        detect_area_bottom = int((a_top + b_top) / 2)
-        detect_area_left = 0
-        detect_area_right = real_cam_w
-        detect_area = frame[detect_area_top:detect_area_bottom, detect_area_left:detect_area_right]
-        detect_area_height = detect_area_top - detect_area_bottom
+            elif detect_wait_cnt == 0:
+                # 検出域を制限する
+                detect_area_top = max(int((a_top + b_top) / 2) - next_area_height, 1)
+                detect_area_bottom = int((a_top + b_top) / 2)
+                detect_area_left = 0
+                detect_area_right = real_cam_w
+                detect_area = frame[detect_area_top:detect_area_bottom, detect_area_left:detect_area_right]
+                detect_area_height = detect_area_top - detect_area_bottom
 
-        if avg is None or area_height != next_area_height or detect_area_height != last_detect_area_height:
+        if avg is None or area_height != next_area_height or last_detect_area_height != detect_area_height:
             avg = detect_area.copy().astype("float")
             area_height = next_area_height
             last_detect_area_height = detect_area_height
@@ -259,7 +208,7 @@ def MeasureSpeed(cap):
         thresh = cv2.threshold(frameDelta, 40, 255, cv2.THRESH_TOZERO)[1]
         
         contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
+                
         max_x = 0
         min_x = 99999
         for i in range(0, len(contours)):
@@ -279,7 +228,7 @@ def MeasureSpeed(cap):
                     
                 y += detect_area_top
                 
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 5)
+                #cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 5)
                 
                 max_x = int(max(max_x, x + w))
                 if max_x == x + w:
@@ -289,8 +238,9 @@ def MeasureSpeed(cap):
                 if min_x == x:
                     min_x_x = x
                     min_x_w = w
-        
+                
         if max_x != 0:
+            print('動体検知')
             if train_from is None and is_still <= 0:                        
                 if a_center < max_x_x + max_x_w < (a_center + b_center) / 2:
                     train_from = 'left'
@@ -331,30 +281,133 @@ def MeasureSpeed(cap):
             else: # Z
                 kph = int((qr_length / passing_time) * 3.6 * 220)
             print(f'時速{kph}キロメートルです')
+            kph_shared.value = kph
             #speak(f'時速{kph}キロメートルです')
-            last_kph = kph
-            first_passed_time = min(passed_a_time, passed_b_time)
-            passed_time = max(passed_a_time, passed_b_time)
+            #first_passed_time = min(passed_a_time, passed_b_time)
+            #passed_time = max(passed_a_time, passed_b_time)
             #cv2.imwrite(f'pass_{first_passed_time}.jpg', first_pass_frame)
             #cv2.imwrite(f'pass_{passed_time}.jpg', frame)
             break
+
+def display(frame, last_kph):
+    display_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+
+    if last_kph:
+        kph_area = cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
+        cv2.rectangle(display_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+        cv2.putText(display_frame, f'{last_kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+
+    if fps:
+        cv2.putText(display_frame, f'{fps}fps', (35, fps_area[1] + 100), cv2.FONT_HERSHEY_DUPLEX, 1, (255, 255, 255), 1)
+    cv2.line(display_frame, (a_center, a_center_y), (a_center, 0), (255, 0, 0), 3)
+    cv2.line(display_frame, (b_center, b_center_y), (b_center, 0), (255, 0, 0), 3)
+    cv2.line(display_frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
+    cv2.line(display_frame, (0, a_top - area_height), (2000, b_top - area_height), (255, 0, 0), 3)
+    show(cv2, display_frame)
+    
+def ReaderWorker(frame_q, a_arr, b_arr):
+    last_a_update = 0
+    last_b_update = 0
+    a_center_y = -1
+    b_center_y = -1
+    a_top = -1
+    b_top = -1
+    
+    while True:
+        frame = frame_q.get(True, 1)
         
-        display_frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        # 5秒間バーコードを検出できなかったら初期化する
+        if last_a_update + 5 < time.time() or last_b_update + 5 < time.time():
+            a_center = -1
+            b_center = -1
 
-        if last_kph:
-            kph_area = cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
-            cv2.rectangle(display_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-            cv2.putText(display_frame, f'{last_kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+        frame_width = frame.shape[1]
+        frame_height = frame.shape[0]
         
-        if fps:
-            cv2.putText(display_frame, f'{fps}fps', (35, fps_area[1] + 100), cv2.FONT_HERSHEY_DUPLEX, 1, (255, 255, 255), 1)
-        cv2.line(display_frame, (a_center, a_center_y), (a_center, 0), (255, 0, 0), 3)
-        cv2.line(display_frame, (b_center, b_center_y), (b_center, 0), (255, 0, 0), 3)
-        cv2.line(display_frame, (0, a_top), (2000, b_top), (255, 0, 0), 3)
-        cv2.line(display_frame, (0, a_top - area_height), (2000, b_top - area_height), (255, 0, 0), 3)
-        show(cv2, display_frame)
+        # シャープネスを上げる
+        kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]], np.float32)
+        frame_for_2d = cv2.filter2D(frame, -1, kernel)
+        
+        codedata = decode(frame_for_2d, timeout=150)
 
+        print(codedata)
 
-while (cap.isOpened()):
-    MeasureSpeed(cap)
+        scale = 'N'
+        for d in codedata:
+            if d.data == b'A':
+                a_center = int(d.rect.left + d.rect.width/2)
+                a_center_y = frame_height - int(d.rect.top + d.rect.height/2)
+                a_top = frame_height - d.rect.top - d.rect.height
+                last_a_update = time.time()
+
+            if d.data == b'B' or d.data == b'C' or d.data == b'D':
+                if d.data == b'C':
+                    scale = 'HO'
+                elif d.data == b'D':
+                    scale = 'Z'
+                b_center = int(d.rect.left + d.rect.width/2)
+                b_center_y = frame_height - int(d.rect.top + d.rect.height/2)
+                b_top = frame_height - d.rect.top - d.rect.height
+                last_b_update = time.time()
+                
+        a_arr[0] = a_center
+        a_arr[1] = a_center_y
+        a_arr[2] = a_top
+        b_arr[0] = b_center
+        b_arr[1] = b_center_y
+        b_arr[2] = b_top
+
+def create2DReader(frame_q_reader, a_arr, b_arr):
+    reader = Process(target=ReaderWorker, args=(frame_q_reader, a_arr, b_arr))
+    reader.daemon = True
+    reader.start()
+    return reader
+
+def createMeasure(frame_q, kph_shared, a_arr, b_arr):
+    measure = Process(target=MeasureSpeedWorker, args=(frame_q, kph_shared, a_arr, b_arr))
+    measure.daemon = True
+    measure.start()
+    return measure
+
+frame_q_measure = Queue()
+frame_q_reader = Queue()
+kph_shared = Value('i', -1)
+a_arr = Array('i', [-1, -1, -1])
+b_arr = Array('i', [-1, -1, -1])
+reader = create2DReader(frame_q_reader, a_arr, b_arr)
+m = createMeasure(frame_q_measure, kph_shared, a_arr, b_arr)
+
+# fps計測
+tm = cv2.TickMeter()
+tm.start()
+cnt_fps = 10
+
+while True:
+    ret, frame = cap.read()
+    if ret == False:
+        continue
+    
+    frame_q_measure.put(frame)
+    frame_q_reader.put(frame)
+    kph = kph_shared.value
+    show(cv2, frame)
+    
+    if not m.is_alive():
+        m = createMeasure(frame_q_measure, kph_shared, a_arr, b_arr)
+    
+    if cnt_fps <= 0:
+        tm.stop()
+        fps = int(1.0 / (tm.getTimeSec() / 10.0))
+        print(fps)
+        fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
+        tm.reset()
+        tm.start()
+        cnt_fps = 10
+    else:
+        cnt_fps -= 1
+        
+    # キューがさばききれなくなってたらどうにかする
+        
+#while (cap.isOpened()):
+    #MeasureSpeed(cap)
     
