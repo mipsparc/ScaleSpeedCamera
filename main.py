@@ -73,7 +73,10 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
     last_area_height = 300
 
     while True:
-        frame = frame_q.get(True, 2)
+        try:
+            frame = frame_q.get(True, 1.0)
+        except queue.Empty:
+            sys.exit()
         # 5フレ以上残ってたら
         if frame_q.qsize() >= 5:
             # 1フレ残して落とす
@@ -219,7 +222,10 @@ def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
     b_top = -1
     
     while True:
-        frame = frame_q.get(True, 2.0)
+        try:
+            frame = frame_q.get(True, 1.0)
+        except queue.Empty:
+            sys.exit()
         # 5フレ以上残ってたら
         if frame_q.qsize() >= 5:
             # 1フレ残して落とす
@@ -286,20 +292,13 @@ def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
     cv2.imshow('ScaleSpeedCamera',frame)
     
     if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeedCamera', 0) == -1:
-        print('終了します')
+        print('終了しています。しばらくお待ちください')
         cap.release()
         cv2.destroyAllWindows()
         sys.exit()
 
-def create2DReader(frame_q_reader, a_arr, b_arr, scale_shared):
-    reader = Process(target=ReaderWorker, args=(frame_q_reader, a_arr, b_arr, scale_shared))
-    reader.daemon = True
-    reader.start()
-    return reader
-
 def createMeasure(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params):
     measure = Process(target=MeasureSpeedWorker, args=(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params))
-    measure.daemon = True
     measure.start()
     return measure
 
@@ -389,8 +388,6 @@ if __name__ == '__main__':
     a_arr = Array('i', [-1, -1, -1])
     b_arr = Array('i', [-1, -1, -1])
     measure_params = Array('i', [150, 3, 300])
-    reader = create2DReader(frame_q_reader, a_arr, b_arr, scale_shared)
-    m = createMeasure(frame_q_measure, kph_shared, a_arr, b_arr, box_q, scale_shared, measure_params)
 
     cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 50 , 300, WindowChange.changeRectSize)
     cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 3 , 5, WindowChange.changeWeight)
@@ -405,11 +402,14 @@ if __name__ == '__main__':
     cnt_fps = 10
     fps = -1
 
+    measure = None
+    reader = None
+
     while cap.isOpened():
         ret, frame = cap.read()
         if ret == False:
             continue
-        
+                
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame_q_measure.put(gray_frame)
         frame_q_reader.put(gray_frame)
@@ -427,8 +427,12 @@ if __name__ == '__main__':
         area_height = WindowChange.area_height
         display(frame, kph, boxes, fps, a_arr, b_arr, area_height)
         
-        if not m.is_alive():
-            m = createMeasure(frame_q_measure, kph_shared, a_arr, b_arr, box_q, scale_shared, measure_params)
+        if reader is None:
+            reader = Process(target=ReaderWorker, args=(frame_q_reader, a_arr, b_arr, scale_shared))
+            reader.start()
+        
+        if measure is None or not measure.is_alive():
+            measure = createMeasure(frame_q_measure, kph_shared, a_arr, b_arr, box_q, scale_shared, measure_params)
         
         if cnt_fps <= 0:
             tm.stop()
