@@ -12,6 +12,10 @@ import subprocess
 import tempfile
 from multiprocessing import Process, Array, Value, Queue, freeze_support
 import queue
+OS = platform.system()
+if OS == 'Windows':
+    import win32com.client as wincl
+
 
 # リリースバージョン
 version = 1.07
@@ -41,6 +45,7 @@ def stderr_redirected(to=os.devnull):
 def speak(speech_text):
     OS = platform.system()
     if OS == 'Windows':
+        voice = wincl.Dispatch("SAPI.SpVoice")
         voice.Speak(speech_text)
     else:
         subprocess.Popen(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
@@ -70,7 +75,9 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
     is_still = 20
 
     detect_wait_cnt = 10
-    last_area_height = 300
+    last_detect_area_height = 300
+    
+    save_photo = params[3]
 
     while True:
         try:
@@ -120,9 +127,9 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]], np.float32)
             normalized_frame = cv2.filter2D(normalized_frame, -1, kernel)
 
-        if avg is None or area_height != last_area_height:
+        if avg is None or detect_area_height != last_detect_area_height:
             avg = detect_area.copy().astype("float")
-            last_area_height = area_height
+            last_detect_area_height = detect_area_height
             continue
 
         cv2.accumulateWeighted(detect_area, avg, weight)
@@ -209,8 +216,23 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             speak(f'時速{kph}キロメートルです')
             first_passed_time = min(passed_a_time, passed_b_time)
             passed_time = max(passed_a_time, passed_b_time)
-            cv2.imwrite(f'pass_{first_passed_time}.jpg', first_pass_frame)
-            cv2.imwrite(f'pass_{passed_time}.jpg', frame)
+
+            if save_photo:
+                OS = platform.system()
+                if OS == 'Windows':
+                    path = os.path.expanduser('~/Pictures')
+                else:
+                    path = os.path.expanduser('~')
+                
+                kph_area = cv2.getTextSize(f'{kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
+                cv2.rectangle(first_pass_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+                cv2.putText(first_pass_frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+                cv2.imwrite(path + f'/train_{first_passed_time}.jpg', first_pass_frame)
+                
+                cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+                cv2.putText(frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+                cv2.imwrite(path + f'/train_{passed_time}.jpg', frame)
+
             break
 
 def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
@@ -284,6 +306,8 @@ def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
     if fps > 0:
         fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
         cv2.putText(frame, f'{fps}fps', (35, fps_area[1] + 100), cv2.FONT_HERSHEY_DUPLEX, 1, (255, 255, 255), 1)
+        
+    
     cv2.line(frame, (a_arr[0], a_arr[1]), (a_arr[0], 0), (255, 0, 0), 3)
     cv2.line(frame, (b_arr[0], b_arr[1]), (b_arr[0], 0), (255, 0, 0), 3)
     cv2.line(frame, (0, a_arr[2]), (2000, b_arr[2]), (255, 0, 0), 3)
@@ -334,11 +358,6 @@ if __name__ == '__main__':
     print(f'バージョン{version}')
     print('起動中です。しばらくお待ちください……''')
 
-    OS = platform.system()
-    if OS == 'Windows':
-        import win32com.client as wincl
-        voice = wincl.Dispatch("SAPI.SpVoice")
-
     camera_id_max = -1
     for camera_id in range(4, -1, -1):
         with stderr_redirected():
@@ -359,6 +378,9 @@ if __name__ == '__main__':
         camera_id_selected = int(input('カメラID(数字)を入力してEnter> '))
     else:
         camera_id_selected = camera_id_max
+    
+    print('通過時の画像をピクチャフォルダに保存する場合はEnter')
+    save_photo = input('保存しない場合はNを入力してEnter > ') !== 'N'
 
     cap = cv2.VideoCapture(camera_id_selected)
 
@@ -418,6 +440,7 @@ if __name__ == '__main__':
         measure_params[0] = WindowChange.rect_size
         measure_params[1] = WindowChange.weight
         measure_params[2] = WindowChange.area_height
+        measure_params[3] = save_photo
         
         try:
             boxes = box_q.get(False)
