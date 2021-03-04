@@ -114,18 +114,16 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             if detect_wait_cnt > 0:
                 detect_wait_cnt -= 1
                 continue
+            
 
             # 検出域を制限する
             detect_area_top = max(int((a_top + b_top) / 2) - area_height, 1)
             detect_area_bottom = int((a_top + b_top) / 2)
             detect_area_left = 0
-            detect_area = frame[detect_area_top:detect_area_bottom, detect_area_left:]
+            detect_area = normalized_frame[detect_area_top:detect_area_bottom, detect_area_left:]
             detect_area_height = detect_area_top - detect_area_bottom
-                
-            normalized_frame = normalizeFrame(frame)
-            # シャープネスを上げる
-            kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]], np.float32)
-            normalized_frame = cv2.filter2D(normalized_frame, -1, kernel)
+            
+            detect_area = normalizeFrame(detect_area)
 
         if avg is None or detect_area_height != last_detect_area_height:
             avg = detect_area.copy().astype("float")
@@ -294,7 +292,9 @@ def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
         b_arr[1] = b_center_y
         b_arr[2] = b_top
         
-def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):    
+def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
+    frame = normalizeFrame(frame)
+    
     for box in boxes:
         cv2.rectangle(frame, (box[0], box[1]), (box[0] + box[2], box[1] + box[3]), (0, 255, 0), 5)
 
