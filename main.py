@@ -120,7 +120,7 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             detect_area_top = max(int((a_top + b_top) / 2) - area_height, 1)
             detect_area_bottom = int((a_top + b_top) / 2)
             detect_area_left = 0
-            detect_area = normalized_frame[detect_area_top:detect_area_bottom, detect_area_left:]
+            detect_area = frame[detect_area_top:detect_area_bottom, detect_area_left:]
             detect_area_height = detect_area_top - detect_area_bottom
             
             detect_area = normalizeFrame(detect_area)
@@ -292,9 +292,7 @@ def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
         b_arr[1] = b_center_y
         b_arr[2] = b_top
         
-def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
-    frame = normalizeFrame(frame)
-    
+def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):  
     for box in boxes:
         cv2.rectangle(frame, (box[0], box[1]), (box[0] + box[2], box[1] + box[3]), (0, 255, 0), 5)
 
@@ -316,7 +314,7 @@ def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
     cv2.imshow('ScaleSpeedCamera',frame)
     
     if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeedCamera', 0) == -1:
-        print('終了しています。しばらくお待ちください')
+        print('終了しています。しばらくお待ちください…')
         cap.release()
         cv2.destroyAllWindows()
         sys.exit()
@@ -381,6 +379,7 @@ if __name__ == '__main__':
     
     print('通過時の画像をピクチャフォルダに保存する場合はEnter')
     save_photo = input('保存しない場合はNを入力してEnter > ') != 'N'
+    print('カメラ初期化中…')
 
     cap = cv2.VideoCapture(camera_id_selected)
 
