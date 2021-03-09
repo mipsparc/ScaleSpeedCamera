@@ -1,4 +1,4 @@
-from pylibdmtx.pylibdmtx import decode
+from pylibdmtx.pylibdmtx import decode, DmtxSymbolSize
 import numpy as np
 import cv2
 import os
@@ -121,7 +121,6 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             if detect_wait_cnt > 0:
                 detect_wait_cnt -= 1
                 continue
-            
 
             # 検出域を制限する
             detect_area_top = max(int((a_top + b_top) / 2) - area_height, 1)
@@ -272,9 +271,9 @@ def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
         frame_width = frame.shape[1]
         frame_height = frame.shape[0]
         
-        frame = normalizeFrame(frame)
+        ret, preprocessed = cv2.threshold(frame, 170, 255, cv2.THRESH_BINARY)
         
-        codedata = decode(frame, timeout=500)
+        codedata = decode(preprocessed, timeout=300, max_count=2, shape=DmtxSymbolSize.DmtxSymbolSquareAuto)
 
         scale_shared.value = 'N'
         for d in codedata:
