@@ -18,7 +18,7 @@ if OS == 'Windows':
 
 
 # リリースバージョン
-version = 1.07
+version = 1.08
 
 # 対応スケール
 '''
