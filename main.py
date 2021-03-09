@@ -20,6 +20,13 @@ if OS == 'Windows':
 # リリースバージョン
 version = 1.07
 
+# 対応スケール
+'''
+N: 1/160
+HO(略号H): 1/80
+Z: 1/220
+'''
+
 @contextmanager
 def stderr_redirected(to=os.devnull):
     fd = sys.stderr.fileno()
@@ -153,6 +160,8 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
                     continue
                 if w > 100:
                     continue
+                if w < 15:
+                    continue
                     
                 y += detect_area_top
                 
@@ -205,7 +214,7 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             qr_length = 0.15
             if scale_shared.value == 'N':
                 kph = int((qr_length / passing_time) * 3.6 * 150)
-            elif scale_shared.value == 'HO':
+            elif scale_shared.value == 'H':
                 kph = int((qr_length / passing_time) * 3.6 * 80)
             else: # Z
                 kph = int((qr_length / passing_time) * 3.6 * 220)
@@ -265,7 +274,7 @@ def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
         
         frame = normalizeFrame(frame)
         
-        codedata = decode(frame, timeout=300)
+        codedata = decode(frame, timeout=500)
 
         scale_shared.value = 'N'
         for d in codedata:
@@ -277,7 +286,7 @@ def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
 
             if d.data == b'B' or d.data == b'C' or d.data == b'D':
                 if d.data == b'C':
-                    scale_shared.value = 'HO'
+                    scale_shared.value = 'H'
                 elif d.data == b'D':
                     scale_shared.value = 'Z'
                 b_center = int(d.rect.left + d.rect.width/2)
@@ -410,11 +419,11 @@ if __name__ == '__main__':
     b_arr = Array('i', [-1, -1, -1])
     measure_params = Array('i', [150, 3, 300, int(save_photo)])
 
-    cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 50 , 300, WindowChange.changeRectSize)
-    cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 3 , 5, WindowChange.changeWeight)
+    cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 30 , 300, WindowChange.changeRectSize)
+    cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 2 , 5, WindowChange.changeWeight)
     cv2.createTrackbar('Height', 'ScaleSpeedCamera', 300, 400, WindowChange.changeHeight)
-    WindowChange.changeRectSize(50)
-    WindowChange.changeWeight(3)
+    WindowChange.changeRectSize(30)
+    WindowChange.changeWeight(2)
     WindowChange.changeHeight(300)
 
     # fps計測
