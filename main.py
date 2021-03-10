@@ -2,6 +2,7 @@
 
 import cv2
 import os
+import numpy as np
 import sys
 from contextlib import contextmanager
 import time
@@ -41,7 +42,7 @@ class WindowChange:
     def changeQrLength(self, num):
         self.qr_length = num
         
-def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):  
+def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
     for box in boxes:
         cv2.rectangle(frame, (box[0], box[1]), (box[0] + box[2], box[1] + box[3]), (0, 255, 0), 5)
 
@@ -53,8 +54,7 @@ def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
     if fps > 0:
         fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
         cv2.putText(frame, f'{fps}fps', (35, fps_area[1] + 100), cv2.FONT_HERSHEY_DUPLEX, 1, (255, 255, 255), 1)
-        
-    
+
     cv2.line(frame, (a_arr[0], a_arr[1]), (a_arr[0], 0), (255, 0, 0), 3)
     cv2.line(frame, (b_arr[0], b_arr[1]), (b_arr[0], 0), (255, 0, 0), 3)
     cv2.line(frame, (0, a_arr[2]), (2000, b_arr[2]), (255, 0, 0), 3)
@@ -149,14 +149,14 @@ if __name__ == '__main__':
     scale_shared = Value('u', 'N')
     a_arr = Array('i', [-1, -1, -1])
     b_arr = Array('i', [-1, -1, -1])
-    measure_params = Array('i', [150, 2, 100, int(save_photo), 15])
+    measure_params = Array('i', [150, 10, 100, int(save_photo), 15])
 
     cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 30 , 300, WindowChange.changeRectSize)
-    cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 20 , 100, WindowChange.changeWeight)
+    cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 10 , 100, WindowChange.changeWeight)
     cv2.createTrackbar('Height', 'ScaleSpeedCamera', 100, 400, WindowChange.changeHeight)
     cv2.createTrackbar('Barcode', 'ScaleSpeedCamera', 15, 100, WindowChange.changeQrLength)
     WindowChange.changeRectSize(30)
-    WindowChange.changeWeight(20)
+    WindowChange.changeWeight(10)
     WindowChange.changeHeight(100)
     WindowChange.changeQrLength(15)
 

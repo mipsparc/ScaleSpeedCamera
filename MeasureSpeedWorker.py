@@ -41,6 +41,8 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
     last_detect_area_height = 300
     
     save_photo = params[3]
+    
+    last_mean = 1
 
     while True:
         try:
@@ -96,10 +98,18 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
 
         cv2.accumulateWeighted(detect_area, avg, weight)
         frameDelta = cv2.absdiff(detect_area, cv2.convertScaleAbs(avg))
-        thresh = cv2.threshold(frameDelta, 40, 255, cv2.THRESH_TOZERO)[1]
+        
+        # 点滅が発生している
+        mean = cv2.mean(frameDelta)[0]
+        if abs(mean - last_mean) > 1:
+            last_mean = mean
+            continue
+        last_mean = mean
+        
+        thresh = cv2.threshold(frameDelta, 30, 255, cv2.THRESH_TOZERO)[1]
         
         contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                
+                        
         max_x = 0
         min_x = 99999
         boxes = []
