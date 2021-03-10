@@ -149,15 +149,15 @@ if __name__ == '__main__':
     scale_shared = Value('u', 'N')
     a_arr = Array('i', [-1, -1, -1])
     b_arr = Array('i', [-1, -1, -1])
-    measure_params = Array('i', [150, 2, 300, int(save_photo), 15])
+    measure_params = Array('i', [150, 2, 100, int(save_photo), 15])
 
     cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 30 , 300, WindowChange.changeRectSize)
     cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 2 , 5, WindowChange.changeWeight)
-    cv2.createTrackbar('Height', 'ScaleSpeedCamera', 300, 400, WindowChange.changeHeight)
+    cv2.createTrackbar('Height', 'ScaleSpeedCamera', 100, 400, WindowChange.changeHeight)
     cv2.createTrackbar('Barcode', 'ScaleSpeedCamera', 15, 100, WindowChange.changeQrLength)
     WindowChange.changeRectSize(30)
     WindowChange.changeWeight(2)
-    WindowChange.changeHeight(300)
+    WindowChange.changeHeight(100)
     WindowChange.changeQrLength(15)
 
     # fps計測
