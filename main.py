@@ -9,16 +9,17 @@ import platform
 import urllib.request
 import json
 import subprocess
-import tempfile
 from multiprocessing import Process, Array, Value, Queue, freeze_support
 import queue
+import tkinter
+from ReaderWorker import ReaderWorker
+from MeasureSpeedWorker import MeasureSpeedWorker
 OS = platform.system()
 if OS == 'Windows':
     import win32com.client as wincl
 
-
 # リリースバージョン
-version = 1.08
+version = 1.09
 
 # 対応スケール
 '''
@@ -26,28 +27,6 @@ N: 1/160
 HO(略号H): 1/80
 Z: 1/220
 '''
-
-@contextmanager
-def stderr_redirected(to=os.devnull):
-    fd = sys.stderr.fileno()
-
-    ##### assert that Python and C stdio write using the same file descriptor
-    ####assert libc.fileno(ctypes.c_void_p.in_dll(libc, "stdout")) == fd == 1
-
-    def _redirect_stderr(to):
-        sys.stderr.close() # + implicit flush()
-        os.dup2(to.fileno(), fd) # fd writes to 'to' file
-        sys.stderr = os.fdopen(fd, 'w') # Python writes to fd
-
-    with os.fdopen(os.dup(fd), 'w') as old_stderr:
-        with open(to, 'w') as file:
-            _redirect_stderr(to=file)
-        try:
-            yield # allow code to be run with the redirected stdout
-        finally:
-            _redirect_stderr(to=old_stderr) # restore stdout.
-                                            # buffering and flags such as
-                                            # CLOEXEC may be different
 
 def speak(speech_text):
     OS = platform.system()
@@ -70,235 +49,6 @@ class WindowChange:
     @classmethod
     def changeHeight(self, num):
         self.area_height = num
-
-def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params):
-    avg = None
-    train_from = None
-    passed_a_time = None
-    passed_b_time = None
-    last_time = 0
-
-    # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
-    is_still = 20
-
-    detect_wait_cnt = 10
-    last_detect_area_height = 300
-    
-    save_photo = params[3]
-
-    while True:
-        try:
-            frame = frame_q.get(True, 1.0)
-        except queue.Empty:
-            sys.exit()
-        # 5フレ以上残ってたら
-        if frame_q.qsize() >= 5:
-            # 1フレ残して落とす
-            for i in range(frame_q.qsize() - 1):
-                try:
-                    frame = frame_q.get(False)
-                except queue.Empty:
-                    pass
-        
-        if (-1 in a_arr) or (-1 in b_arr):
-            # 2次元地点検知コードが認識できなかった場合
-            detect_wait_cnt = 10
-            continue
-        else:
-            a_center = a_arr[0]
-            a_center_y = a_arr[1]
-            a_top = a_arr[2]
-        
-            b_center = b_arr[0]
-            b_center_y = b_arr[1]
-            b_top = b_arr[2]
-            
-            rect_size = params[0]
-            weight = params[1] / 10
-            area_height = params[2]
-            
-            #認識し始めから検出まで10フレーム待つ
-            if detect_wait_cnt > 0:
-                detect_wait_cnt -= 1
-                continue
-
-            # 検出域を制限する
-            detect_area_top = max(int((a_top + b_top) / 2) - area_height, 1)
-            detect_area_bottom = int((a_top + b_top) / 2)
-            detect_area_left = 0
-            detect_area = frame[detect_area_top:detect_area_bottom, detect_area_left:]
-            detect_area_height = detect_area_top - detect_area_bottom
-            
-            detect_area = normalizeFrame(detect_area)
-
-        if avg is None or detect_area_height != last_detect_area_height:
-            avg = detect_area.copy().astype("float")
-            last_detect_area_height = detect_area_height
-            continue
-
-        cv2.accumulateWeighted(detect_area, avg, weight)
-        frameDelta = cv2.absdiff(detect_area, cv2.convertScaleAbs(avg))
-        thresh = cv2.threshold(frameDelta, 40, 255, cv2.THRESH_TOZERO)[1]
-        
-        contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                
-        max_x = 0
-        min_x = 99999
-        boxes = []
-        for i in range(0, len(contours)):
-            if len(contours[i]) > 0:
-                # 小さいオブジェクトを除去する
-                if cv2.contourArea(contours[i]) < rect_size:
-                    continue
-
-                rect = contours[i]
-                x, y, w, h = cv2.boundingRect(rect)
-                
-                #線路の微妙な部分を排除する
-                if h < 15:
-                    continue
-                if w > 100:
-                    continue
-                if w < 15:
-                    continue
-                    
-                y += detect_area_top
-                
-                boxes.append([x, y, w, h])
-                
-                max_x = int(max(max_x, x + w))
-                if max_x == x + w:
-                    max_x_x = x
-                    max_x_w = w
-                min_x = int(min(min_x, x))
-                if min_x == x:
-                    min_x_x = x
-                    min_x_w = w
-                    
-        box_q.put(boxes)
-                
-        if max_x != 0:
-            if train_from is None and is_still <= 0:                        
-                if a_center < max_x_x + max_x_w < (a_center + b_center) / 2:
-                    train_from = 'left'
-                    passed_a_time = time.time()
-                    print('列車が左から来ました')
-                    first_pass_frame = frame
-                elif (a_center + b_center) / 2 < min_x_x - min_x_w < b_center:
-                    train_from = 'right'
-                    passed_b_time = time.time()
-                    print('列車が右から来ました')
-                    first_pass_frame = frame
-            
-            if train_from == 'left' and passed_a_time + 0.5 < time.time():
-                if passed_b_time is None:
-                    if max_x_x + max_x_w > b_center:
-                        print('右を通過しました')
-                        passed_b_time = time.time()
-            elif train_from == 'right' and passed_b_time + 0.5 < time.time():
-                if passed_a_time is None:
-                    if a_center > min_x - min_x_w:
-                        print('左を通過しました')
-                        passed_a_time = time.time()
-                            
-            if passed_a_time and (time.time() > passed_a_time + (15 - (weight-0.1) * 20)):
-                break
-            if passed_b_time and (time.time() > passed_b_time + (15 - (weight-0.1) * 20)):
-                break
-        else:
-            is_still -= 1
-
-        if passed_a_time is not None and passed_b_time is not None:
-            passing_time = abs(passed_a_time - passed_b_time)
-            qr_length = 0.15
-            if scale_shared.value == 'N':
-                kph = int((qr_length / passing_time) * 3.6 * 150)
-            elif scale_shared.value == 'H':
-                kph = int((qr_length / passing_time) * 3.6 * 80)
-            else: # Z
-                kph = int((qr_length / passing_time) * 3.6 * 220)
-            print(f'時速{kph}キロメートルです')
-            kph_shared.value = kph
-            speak(f'時速{kph}キロメートルです')
-            first_passed_time = min(passed_a_time, passed_b_time)
-            passed_time = max(passed_a_time, passed_b_time)
-
-            if save_photo:
-                OS = platform.system()
-                if OS == 'Windows':
-                    path = os.path.expanduser('~/Pictures')
-                else:
-                    path = os.path.expanduser('~')
-                
-                kph_area = cv2.getTextSize(f'{kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
-                cv2.rectangle(first_pass_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-                cv2.putText(first_pass_frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
-                cv2.imwrite(path + f'/train_{first_passed_time}.jpg', first_pass_frame)
-                
-                cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-                cv2.putText(frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
-                cv2.imwrite(path + f'/train_{passed_time}.jpg', frame)
-
-            break
-
-def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
-    last_a_update = 0
-    last_b_update = 0
-    a_center_y = -1
-    b_center_y = -1
-    a_top = -1
-    b_top = -1
-    
-    while True:
-        try:
-            frame = frame_q.get(True, 1.0)
-        except queue.Empty:
-            sys.exit()
-        # 5フレ以上残ってたら
-        if frame_q.qsize() >= 5:
-            # 1フレ残して落とす
-            for i in range(frame_q.qsize() - 1):
-                try:
-                    frame = frame_q.get(False)
-                except queue.Empty:
-                    pass
-        
-        # 5秒間バーコードを検出できなかったら初期化する
-        if last_a_update + 10 < time.time() or last_b_update + 10 < time.time():
-            a_center = -1
-            b_center = -1
-
-        frame_width = frame.shape[1]
-        frame_height = frame.shape[0]
-        
-        ret, preprocessed = cv2.threshold(frame, 170, 255, cv2.THRESH_BINARY)
-        
-        codedata = decode(preprocessed, timeout=300, max_count=2, shape=DmtxSymbolSize.DmtxSymbolSquareAuto)
-
-        scale_shared.value = 'N'
-        for d in codedata:
-            if d.data == b'A':
-                a_center = int(d.rect.left + d.rect.width/2)
-                a_center_y = frame_height - int(d.rect.top + d.rect.height/2)
-                a_top = frame_height - d.rect.top - d.rect.height
-                last_a_update = time.time()
-
-            if d.data == b'B' or d.data == b'C' or d.data == b'D':
-                if d.data == b'C':
-                    scale_shared.value = 'H'
-                elif d.data == b'D':
-                    scale_shared.value = 'Z'
-                b_center = int(d.rect.left + d.rect.width/2)
-                b_center_y = frame_height - int(d.rect.top + d.rect.height/2)
-                b_top = frame_height - d.rect.top - d.rect.height
-                last_b_update = time.time()
-                
-        a_arr[0] = a_center
-        a_arr[1] = a_center_y
-        a_arr[2] = a_top
-        b_arr[0] = b_center
-        b_arr[1] = b_center_y
-        b_arr[2] = b_top
         
 def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):  
     for box in boxes:
@@ -366,12 +116,11 @@ if __name__ == '__main__':
 
     camera_id_max = -1
     for camera_id in range(4, -1, -1):
-        with stderr_redirected():
-            cap = cv2.VideoCapture(camera_id)
-            if cap.isOpened():
-                camera_id_max = camera_id
-                cap.release()
-                break
+        cap = cv2.VideoCapture(camera_id)
+        if cap.isOpened():
+            camera_id_max = camera_id
+            cap.release()
+            break
 
     if camera_id_max < 0:
         print('カメラが検出できませんでした。')
