@@ -71,7 +71,7 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             b_top = b_arr[2]
             
             rect_size = params[0]
-            weight = params[1] / 10
+            weight = params[1] / 100 + 0.01
             area_height = params[2]
             qr_length = params[4] / 100
             
