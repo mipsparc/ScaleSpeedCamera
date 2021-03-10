@@ -73,7 +73,7 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             rect_size = params[0]
             weight = params[1] / 10
             area_height = params[2]
-            qr_length = params[4]
+            qr_length = params[4] / 100
             
             #認識し始めから検出まで10フレーム待つ
             if detect_wait_cnt > 0:
@@ -177,6 +177,7 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
                 kph = int((qr_length / passing_time) * 3.6 * 80)
             else: # Z
                 kph = int((qr_length / passing_time) * 3.6 * 220)
+
             print(f'時速{kph}キロメートルです')
             kph_shared.value = kph
             speak(f'時速{kph}キロメートルです')

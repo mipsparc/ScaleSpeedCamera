@@ -149,7 +149,7 @@ if __name__ == '__main__':
     scale_shared = Value('u', 'N')
     a_arr = Array('i', [-1, -1, -1])
     b_arr = Array('i', [-1, -1, -1])
-    measure_params = Array('i', [150, 3, 300, int(save_photo)])
+    measure_params = Array('i', [150, 2, 300, int(save_photo), 15])
 
     cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 30 , 300, WindowChange.changeRectSize)
     cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 2 , 5, WindowChange.changeWeight)
