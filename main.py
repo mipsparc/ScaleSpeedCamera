@@ -1,22 +1,17 @@
-from pylibdmtx.pylibdmtx import decode, DmtxSymbolSize
-import numpy as np
+#coding:utf-8
+
 import cv2
 import os
 import sys
 from contextlib import contextmanager
 import time
-import platform
 import urllib.request
 import json
-import subprocess
 from multiprocessing import Process, Array, Value, Queue, freeze_support
 import queue
 import tkinter
 from ReaderWorker import ReaderWorker
 from MeasureSpeedWorker import MeasureSpeedWorker
-OS = platform.system()
-if OS == 'Windows':
-    import win32com.client as wincl
 
 # リリースバージョン
 version = 1.09
@@ -27,14 +22,6 @@ N: 1/160
 HO(略号H): 1/80
 Z: 1/220
 '''
-
-def speak(speech_text):
-    OS = platform.system()
-    if OS == 'Windows':
-        voice = wincl.Dispatch("SAPI.SpVoice")
-        voice.Speak(speech_text)
-    else:
-        subprocess.Popen(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
 
 class WindowChange:
     @classmethod
@@ -49,6 +36,10 @@ class WindowChange:
     @classmethod
     def changeHeight(self, num):
         self.area_height = num
+        
+    @classmethod
+    def changeQrLength(self, num):
+        self.qr_length = num
         
 def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):  
     for box in boxes:
@@ -81,13 +72,6 @@ def createMeasure(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params
     measure = Process(target=MeasureSpeedWorker, args=(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params))
     measure.start()
     return measure
-
-def normalizeFrame(v):
-    # 明るさを平準化する
-    # https://qiita.com/s-kajioka/items/9c9fc6c0e9e8a9d05800
-    v = ( v - np.mean(v)) / np.std(v) * 30 + 90
-    frame = np.array(v, dtype=np.uint8)
-    return frame
 
 if __name__ == '__main__':
     freeze_support()
@@ -170,9 +154,11 @@ if __name__ == '__main__':
     cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 30 , 300, WindowChange.changeRectSize)
     cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 2 , 5, WindowChange.changeWeight)
     cv2.createTrackbar('Height', 'ScaleSpeedCamera', 300, 400, WindowChange.changeHeight)
+    cv2.createTrackbar('Barcode', 'ScaleSpeedCamera', 15, 100, WindowChange.changeQrLength)
     WindowChange.changeRectSize(30)
     WindowChange.changeWeight(2)
     WindowChange.changeHeight(300)
+    WindowChange.changeQrLength(15)
 
     # fps計測
     tm = cv2.TickMeter()
@@ -194,8 +180,9 @@ if __name__ == '__main__':
         kph = kph_shared.value
         
         measure_params[0] = WindowChange.rect_size
-        measure_params[1] = WindowChange.weight
+        measure_params[1] = WindowChange.weight + 1
         measure_params[2] = WindowChange.area_height
+        measure_params[4] = WindowChange.qr_length
         
         try:
             boxes = box_q.get(False)

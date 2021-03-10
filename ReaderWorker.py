@@ -1,5 +1,11 @@
 #coding:utf-8
 
+import time
+from pylibdmtx.pylibdmtx import decode, DmtxSymbolSize
+import queue
+import cv2
+import sys
+
 def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
     last_a_update = 0
     last_b_update = 0
@@ -11,6 +17,7 @@ def ReaderWorker(frame_q, a_arr, b_arr, scale_shared):
     while True:
         try:
             frame = frame_q.get(True, 1.0)
+        # 本来自動で落ちるべきだが落ちないので
         except queue.Empty:
             sys.exit()
         # 5フレ以上残ってたら

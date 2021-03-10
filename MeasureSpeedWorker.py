@@ -1,4 +1,31 @@
 #coding:utf-8
+import time
+import cv2
+import numpy as np
+import queue
+import os
+import sys
+import platform
+OS = platform.system()
+if OS == 'Windows':
+    import win32com.client as wincl
+else:
+    import subprocess
+    
+def speak(speech_text):
+    OS = platform.system()
+    if OS == 'Windows':
+        voice = wincl.Dispatch("SAPI.SpVoice")
+        voice.Speak(speech_text)
+    else:
+        subprocess.Popen(f"echo '{speech_text}' | open_jtalk -x /var/lib/mecab/dic/open-jtalk/naist-jdic -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice -ow /dev/stdout | aplay --quiet", shell=True)
+
+def normalizeFrame(v):
+    # 明るさを平準化する
+    # https://qiita.com/s-kajioka/items/9c9fc6c0e9e8a9d05800
+    v = ( v - np.mean(v)) / np.std(v) * 30 + 90
+    frame = np.array(v, dtype=np.uint8)
+    return frame
 
 def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params):
     avg = None
@@ -18,6 +45,7 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
     while True:
         try:
             frame = frame_q.get(True, 1.0)
+        # 本来自動で落ちるべきだが落ちないので
         except queue.Empty:
             sys.exit()
         # 5フレ以上残ってたら
@@ -45,6 +73,7 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             rect_size = params[0]
             weight = params[1] / 10
             area_height = params[2]
+            qr_length = params[4]
             
             #認識し始めから検出まで10フレーム待つ
             if detect_wait_cnt > 0:
@@ -119,27 +148,29 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
                     print('列車が右から来ました')
                     first_pass_frame = frame
             
-            if train_from == 'left' and passed_a_time + 0.5 < time.time():
+            if train_from == 'left' and passed_a_time + 0.3 < time.time():
                 if passed_b_time is None:
                     if max_x_x + max_x_w > b_center:
                         print('右を通過しました')
                         passed_b_time = time.time()
-            elif train_from == 'right' and passed_b_time + 0.5 < time.time():
+            elif train_from == 'right' and passed_b_time + 0.3 < time.time():
                 if passed_a_time is None:
                     if a_center > min_x - min_x_w:
                         print('左を通過しました')
                         passed_a_time = time.time()
-                            
-            if passed_a_time and (time.time() > passed_a_time + (15 - (weight-0.1) * 20)):
-                break
-            if passed_b_time and (time.time() > passed_b_time + (15 - (weight-0.1) * 20)):
-                break
         else:
             is_still -= 1
+            if passed_a_time is None or passed_b_time is None:
+                if passed_a_time and (time.time() > passed_a_time + 10):
+                    print('列車検知をクリアしました')
+                    break
+                if passed_b_time and (time.time() > passed_b_time + 10):
+                    print('列車検知をクリアしました')
+                    break
 
         if passed_a_time is not None and passed_b_time is not None:
             passing_time = abs(passed_a_time - passed_b_time)
-            qr_length = 0.15
+
             if scale_shared.value == 'N':
                 kph = int((qr_length / passing_time) * 3.6 * 150)
             elif scale_shared.value == 'H':
