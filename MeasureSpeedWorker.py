@@ -106,7 +106,7 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
             continue
         last_mean = mean
         
-        thresh = cv2.threshold(frameDelta, 30, 255, cv2.THRESH_TOZERO)[1]
+        thresh = cv2.threshold(frameDelta, 35, 255, cv2.THRESH_TOZERO)[1]
         
         contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                         

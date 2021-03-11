@@ -149,15 +149,15 @@ if __name__ == '__main__':
     scale_shared = Value('u', 'N')
     a_arr = Array('i', [-1, -1, -1])
     b_arr = Array('i', [-1, -1, -1])
-    measure_params = Array('i', [150, 10, 100, int(save_photo), 15])
+    measure_params = Array('i', [30, 10, 200, int(save_photo), 15])
 
     cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 30 , 300, WindowChange.changeRectSize)
     cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 10 , 100, WindowChange.changeWeight)
-    cv2.createTrackbar('Height', 'ScaleSpeedCamera', 100, 400, WindowChange.changeHeight)
+    cv2.createTrackbar('Height', 'ScaleSpeedCamera', 200, 400, WindowChange.changeHeight)
     cv2.createTrackbar('Barcode', 'ScaleSpeedCamera', 15, 100, WindowChange.changeQrLength)
     WindowChange.changeRectSize(30)
     WindowChange.changeWeight(10)
-    WindowChange.changeHeight(100)
+    WindowChange.changeHeight(200)
     WindowChange.changeQrLength(15)
 
     # fps計測
@@ -168,6 +168,8 @@ if __name__ == '__main__':
 
     measure = None
     reader = None
+    
+    display_cnt = 0
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -190,7 +192,12 @@ if __name__ == '__main__':
             pass
         
         area_height = WindowChange.area_height
-        display(frame, kph, boxes, fps, a_arr, b_arr, area_height)
+        
+        if display_cnt % 5 == 0:
+            display(frame, kph, boxes, fps, a_arr, b_arr, area_height)
+            display_cnt = 0
+        else:
+            display_cnt += 1
         
         if reader is None:
             reader = Process(target=ReaderWorker, args=(frame_q_reader, a_arr, b_arr, scale_shared))
