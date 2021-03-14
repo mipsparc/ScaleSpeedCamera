@@ -11,11 +11,13 @@ import json
 from multiprocessing import Process, Array, Value, Queue, freeze_support
 import queue
 import tkinter
+from tkinter import ttk, messagebox
 from ReaderWorker import ReaderWorker
 from MeasureSpeedWorker import MeasureSpeedWorker
+from Greeting import Greeting
 
 # リリースバージョン
-version = 1.09
+version = 1.1
 
 # 対応スケール
 '''
@@ -106,21 +108,15 @@ if __name__ == '__main__':
             cap.release()
             break
 
-    if camera_id_max < 0:
-        print('カメラが検出できませんでした。')
+    if camera_id_max == -1:
+        messagebox.showinfo(message='利用できるカメラがありません。\n他のソフトで使用していませんか?')
         sys.exit()
-        
-    if camera_id_max > 0:
-        print('複数のカメラが検出されました。どのカメラを使いますか?"')
-        for i in range(camera_id_max + 1):
-            print(f'カメラID: {i}')
-        camera_id_selected = int(input('カメラID(数字)を入力してEnter> '))
-    else:
-        camera_id_selected = camera_id_max
     
-    print('通過時の画像をピクチャフォルダに保存する場合はEnter')
-    save_photo = input('保存しない場合はNを入力してEnter > ') != 'N'
-    print('カメラ初期化中…')
+    root = tkinter.Tk()
+    greeting = Greeting(root, camera_id_max)
+    print(greeting.init_value)
+    camera_id_selected = int(greeting.init_value['camera_id'])
+    save_photo = greeting.init_value['save_photo']
 
     cap = cv2.VideoCapture(camera_id_selected)
 
