@@ -30,14 +30,14 @@ def ReaderWorker(frame_shared, a_arr, b_arr, real_cam_w, real_cam_h):
         for d in codedata:
             if d.data == b'A':
                 a_center = int(d.rect.left + d.rect.width/2)
-                a_center_y = frame_height - int(d.rect.top + d.rect.height/2)
-                a_top = frame_height - d.rect.top - d.rect.height
+                a_center_y = real_cam_h - int(d.rect.top + d.rect.height/2)
+                a_top = real_cam_h - d.rect.top - d.rect.height
                 last_a_update = time.time()
 
             if d.data == b'B' or d.data == b'C' or d.data == b'D':
                 b_center = int(d.rect.left + d.rect.width/2)
-                b_center_y = frame_height - int(d.rect.top + d.rect.height/2)
-                b_top = frame_height - d.rect.top - d.rect.height
+                b_center_y = real_cam_h - int(d.rect.top + d.rect.height/2)
+                b_top = real_cam_h - d.rect.top - d.rect.height
                 last_b_update = time.time()
                 
         a_arr[0] = a_center
