@@ -27,12 +27,17 @@ def normalizeFrame(v):
     frame = np.array(v, dtype=np.uint8)
     return frame
 
-def MeasureSpeedWorker(frame_shared, kph_shared, a_arr, b_arr, box_q, params):
+def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system):
     avg = None
     train_from = None
     passed_a_time = None
     passed_b_time = None
     last_time = 0
+    
+    if speed_system == 'kph':
+        scale_factor = scale
+    else:
+        scale_factor = scale * 1.609344
 
     # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
     is_still = 20
@@ -171,33 +176,33 @@ def MeasureSpeedWorker(frame_shared, kph_shared, a_arr, b_arr, box_q, params):
         if passed_a_time is not None and passed_b_time is not None:
             passing_time = abs(passed_a_time - passed_b_time)
 
-            #if scale_shared.value == 'N':
-            kph = int((qr_length / passing_time) * 3.6 * 150)
-            #elif scale_shared.value == 'H':
-                #kph = int((qr_length / passing_time) * 3.6 * 80)
-            #else: # Z
-                #kph = int((qr_length / passing_time) * 3.6 * 220)
+            result = int((qr_length / passing_time) * 3.6 * scale_factor)
 
-            print(f'時速{kph}キロメートルです')
-            kph_shared.value = kph
-            speak(f'時速{kph}キロメートルです')
+            if speed_system == 'kph':
+                print(f'時速{result}キロメートルです')
+                speed_shared.value = result
+                speak(f'時速{result}キロメートルです')
+            else:
+                print(f'時速{result}マイルです')
+                speed_shared.value = result
+                speak(f'時速{result}マイルです')
             first_passed_time = min(passed_a_time, passed_b_time)
             passed_time = max(passed_a_time, passed_b_time)
 
-            if save_photo:
-                OS = platform.system()
-                if OS == 'Windows':
-                    path = os.path.expanduser('~/Pictures')
-                else:
-                    path = os.path.expanduser('~')
+            #if save_photo:
+                #OS = platform.system()
+                #if OS == 'Windows':
+                    #path = os.path.expanduser('~/Pictures')
+                #else:
+                    #path = os.path.expanduser('~')
                 
-                kph_area = cv2.getTextSize(f'{kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
-                cv2.rectangle(first_pass_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-                cv2.putText(first_pass_frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
-                cv2.imwrite(path + f'/train_{first_passed_time}.jpg', first_pass_frame)
+                #kph_area = cv2.getTextSize(f'{kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
+                #cv2.rectangle(first_pass_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+                #cv2.putText(first_pass_frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+                #cv2.imwrite(path + f'/train_{first_passed_time}.jpg', first_pass_frame)
                 
-                cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-                cv2.putText(frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
-                cv2.imwrite(path + f'/train_{passed_time}.jpg', frame)
+                #cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+                #cv2.putText(frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+                #cv2.imwrite(path + f'/train_{passed_time}.jpg', frame)
 
             break

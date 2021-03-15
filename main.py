@@ -65,8 +65,8 @@ def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height, disp):
     
     np.asarray(frame_shared)[:] = np.array(frame).flatten()
 
-def createMeasure(frame_shared, kph_shared, a_arr, b_arr, box_q, params):
-    measure = Process(target=MeasureSpeedWorker, args=(frame_shared, kph_shared, a_arr, b_arr, box_q, params), daemon=True)
+def createMeasure(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system):
+    measure = Process(target=MeasureSpeedWorker, args=(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system), daemon=True)
     measure.start()
     return measure
 
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     
     box_q  = Queue()
     boxes = []
-    kph_shared = Value('i', -1)
+    speed_shared = Value('i', -1)
 
     # fps計測
     tm = cv2.TickMeter()
@@ -175,12 +175,7 @@ if __name__ == '__main__':
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         np.asarray(frame_gray_shared)[:] = np.array(gray_frame).flatten()
         
-        kph = kph_shared.value
-        
-        #measure_params[0] = WindowChange.rect_size
-        #measure_params[1] = WindowChange.weight + 1
-        #measure_params[2] = WindowChange.area_height
-        #measure_params[4] = WindowChange.qr_length
+        speed = speed_shared.value
         
         try:
             boxes = box_q.get(False)
@@ -188,12 +183,12 @@ if __name__ == '__main__':
             pass
         
         if measure is None or not measure.is_alive():
-            measure = createMeasure(frame_gray_shared, kph_shared, a_arr, b_arr, box_q, measure_params)
+            measure = createMeasure(frame_gray_shared, speed_shared, a_arr, b_arr, box_q, measure_params, scale, speed_system)
         
         area_height = measure_params[2]
         
         if display_cnt % 5 == 0:
-            display(frame, kph, boxes, fps, a_arr, b_arr, area_height, disp)
+            display(frame, speed, boxes, fps, a_arr, b_arr, area_height, disp)
             display_cnt = 0
         else:
             display_cnt += 1

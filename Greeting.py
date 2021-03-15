@@ -73,8 +73,8 @@ class Greeting:
     def final(self, *args):
         scale = self.custom_gauge.get()
         try:
-            v = scale.split('/')[1]
-            int(v)
+            scale_howsmall = scale.split('/')[1]
+            int(scale_howsmall)
         except IndexError:
             return
         except ValueError:
@@ -89,5 +89,5 @@ class Greeting:
             return
         camera_id = camera_name.split(' ')[1]
         
-        self.init_value = {'scale': scale, 'speed_system': speed_system, 'camera_id': camera_id, 'save_photo': self.save_photo.get()}
+        self.init_value = {'scale': scale_howsmall, 'speed_system': speed_system, 'camera_id': camera_id, 'save_photo': self.save_photo.get()}
         self.root.destroy()
