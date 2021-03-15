@@ -8,13 +8,14 @@ from contextlib import contextmanager
 import time
 import urllib.request
 import json
-from multiprocessing import Process, Array, Value, Queue, freeze_support
+from multiprocessing import Process, Array, Value, Queue, freeze_support, sharedctypes
 import queue
 import tkinter
 from tkinter import ttk, messagebox
 from ReaderWorker import ReaderWorker
 from MeasureSpeedWorker import MeasureSpeedWorker
 from Greeting import Greeting
+from Display import DisplayWorker
 
 # リリースバージョン
 version = 1.1
@@ -44,7 +45,7 @@ class WindowChange:
     def changeQrLength(self, num):
         self.qr_length = num
         
-def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
+def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height, disp):
     for box in boxes:
         cv2.rectangle(frame, (box[0], box[1]), (box[0] + box[2], box[1] + box[3]), (0, 255, 0), 5)
 
@@ -62,23 +63,17 @@ def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height):
     cv2.line(frame, (0, a_arr[2]), (2000, b_arr[2]), (255, 0, 0), 3)
     cv2.line(frame, (0, a_arr[2] - area_height), (2000, b_arr[2] - area_height), (255, 0, 0), 3)
     
-    cv2.imshow('ScaleSpeedCamera',frame)
-    
-    if cv2.waitKey(1) & 0xFF == ord('q') or cv2.getWindowProperty('ScaleSpeedCamera', 0) == -1:
-        print('終了しています。しばらくお待ちください…')
-        cap.release()
-        cv2.destroyAllWindows()
-        sys.exit()
+    np.asarray(frame_shared)[:] = np.array(frame).flatten()
 
-def createMeasure(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params):
-    measure = Process(target=MeasureSpeedWorker, args=(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params))
+def createMeasure(frame_shared, kph_shared, a_arr, b_arr, box_q, params):
+    measure = Process(target=MeasureSpeedWorker, args=(frame_shared, kph_shared, a_arr, b_arr, box_q, params), daemon=True)
     measure.start()
     return measure
 
 if __name__ == '__main__':
     freeze_support()
         
-    # 最新バージョン確認
+    # 最新バージョン確認 TODO: GUI化
     try:
         with urllib.request.urlopen('https://api.github.com/repos/mipsparc/ScaleSpeedCamera/releases/latest', timeout=3) as response:
             j = response.read().decode('utf-8')
@@ -88,9 +83,7 @@ if __name__ == '__main__':
                 print('https://github.com/mipsparc/ScaleSpeedCamera/releases')
                 print()
                 input('このまま起動するには、Enterキーを押してください')
-                print()
-            else:
-                print('最新のバージョンです')
+                print() 
     except KeyboardInterrupt:
         sys.exit()
     except:
@@ -100,61 +93,68 @@ if __name__ == '__main__':
     print(f'バージョン{version}')
     print('起動中です。しばらくお待ちください……''')
 
+    camera_ids = []
     camera_id_max = -1
     for camera_id in range(4, -1, -1):
         cap = cv2.VideoCapture(camera_id)
         if cap.isOpened():
-            camera_id_max = camera_id
+            camera_ids.append(camera_id)
             cap.release()
-            break
 
-    if camera_id_max == -1:
+    if len(camera_ids) == 0:
         messagebox.showinfo(message='利用できるカメラがありません。\n他のソフトで使用していませんか?')
         sys.exit()
     
     root = tkinter.Tk()
-    greeting = Greeting(root, camera_id_max)
-    print(greeting.init_value)
-    camera_id_selected = int(greeting.init_value['camera_id'])
-    save_photo = greeting.init_value['save_photo']
+    greeting = Greeting(root, camera_ids)
+    try:
+        camera_id_selected = int(greeting.init_value['camera_id'])
+        save_photo = greeting.init_value['save_photo']
+        speed_system = greeting.init_value['speed_system']
+        scale = greeting.init_value['scale']
+    # ウィンドウ閉じた場合
+    except AttributeError:
+        sys.exit()
 
     cap = cv2.VideoCapture(camera_id_selected)
-
+    
     camera_width = 1280
     camera_height = 720
-    camera_fps = 60
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-    cap.set(cv2.CAP_PROP_FPS, camera_fps)
     real_cam_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     real_cam_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    ret, frame = cap.read()
+    frame_shared = sharedctypes.RawArray('B', real_cam_w * real_cam_h * 3)
+    np.asarray(frame_shared)[:] = np.array(frame).flatten()
+    
+    root = tkinter.Tk()
+    measure_params = Array('i', [15, 20, 200, int(save_photo), 15, real_cam_w, real_cam_h])
+    disp = Process(target=DisplayWorker, args=(root, frame_shared, real_cam_w, real_cam_h, measure_params))
+    disp.start()
+
+    camera_fps = 60
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    cap.set(cv2.CAP_PROP_FPS, camera_fps)
     real_cam_fps = int(cap.get(cv2.CAP_PROP_FPS))
     print(f'{real_cam_w}x{real_cam_h} {real_cam_fps}fps')
 
     print('カメラの初期化が完了しました')
     print()
+        
+    a_arr = Array('i', [-1, -1, -1])
+    b_arr = Array('i', [-1, -1, -1])
     
-    cv2.namedWindow('ScaleSpeedCamera')
-
-    frame_q_measure = Queue()
-    frame_q_reader = Queue()
+    frame_gray_shared = sharedctypes.RawArray('B', real_cam_w * real_cam_h)
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    np.asarray(frame_gray_shared)[:] = np.array(gray_frame).flatten()
+    reader = Process(target=ReaderWorker, args=(frame_gray_shared, a_arr, b_arr, real_cam_w, real_cam_h), daemon=True)
+    reader.start()
+    
     box_q  = Queue()
     boxes = []
     kph_shared = Value('i', -1)
-    scale_shared = Value('u', 'N')
-    a_arr = Array('i', [-1, -1, -1])
-    b_arr = Array('i', [-1, -1, -1])
-    measure_params = Array('i', [15, 20, 200, int(save_photo), 15])
-
-    cv2.createTrackbar('MinRect', 'ScaleSpeedCamera', 15, 300, WindowChange.changeRectSize)
-    cv2.createTrackbar('Weight', 'ScaleSpeedCamera', 20, 100, WindowChange.changeWeight)
-    cv2.createTrackbar('Height', 'ScaleSpeedCamera', 200, 400, WindowChange.changeHeight)
-    cv2.createTrackbar('Barcode', 'ScaleSpeedCamera', 15, 100, WindowChange.changeQrLength)
-    WindowChange.changeRectSize(15)
-    WindowChange.changeWeight(20)
-    WindowChange.changeHeight(200)
-    WindowChange.changeQrLength(15)
 
     # fps計測
     tm = cv2.TickMeter()
@@ -173,34 +173,36 @@ if __name__ == '__main__':
             continue
                 
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frame_q_measure.put(gray_frame)
-        frame_q_reader.put(gray_frame)
+        np.asarray(frame_gray_shared)[:] = np.array(gray_frame).flatten()
+        
         kph = kph_shared.value
         
-        measure_params[0] = WindowChange.rect_size
-        measure_params[1] = WindowChange.weight + 1
-        measure_params[2] = WindowChange.area_height
-        measure_params[4] = WindowChange.qr_length
+        #measure_params[0] = WindowChange.rect_size
+        #measure_params[1] = WindowChange.weight + 1
+        #measure_params[2] = WindowChange.area_height
+        #measure_params[4] = WindowChange.qr_length
         
         try:
             boxes = box_q.get(False)
         except queue.Empty:
             pass
         
-        area_height = WindowChange.area_height
+        if measure is None or not measure.is_alive():
+            measure = createMeasure(frame_gray_shared, kph_shared, a_arr, b_arr, box_q, measure_params)
+        
+        #area_height = WindowChange.area_height
+        area_height = 200
         
         if display_cnt % 5 == 0:
-            display(frame, kph, boxes, fps, a_arr, b_arr, area_height)
+            display(frame, kph, boxes, fps, a_arr, b_arr, area_height, disp)
             display_cnt = 0
         else:
             display_cnt += 1
-        
-        if reader is None:
-            reader = Process(target=ReaderWorker, args=(frame_q_reader, a_arr, b_arr, scale_shared))
-            reader.start()
-        
-        if measure is None or not measure.is_alive():
-            measure = createMeasure(frame_q_measure, kph_shared, a_arr, b_arr, box_q, scale_shared, measure_params)
+            
+        # ウィンドウを閉じたとき
+        if not disp.is_alive():
+            cap.release()
+            sys.exit()
         
         if cnt_fps <= 0:
             tm.stop()

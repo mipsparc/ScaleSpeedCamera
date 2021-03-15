@@ -1,11 +1,14 @@
+#coding:utf-8
+
 import tkinter
 from tkinter import ttk
-import cv2
+from Icon import ICON
 
 class Greeting:
-    # Select gauge, Camera
-    def __init__(self, root, camera_id_max):
+    def __init__(self, root, camera_ids):
         self.root = root
+        iconimg = tkinter.PhotoImage(data=ICON) 
+        root.iconphoto(True, iconimg)
         self.root.title("ScaleSpeedCamera")
         self.root.resizable(False, False)
         s = ttk.Style()
@@ -36,7 +39,7 @@ class Greeting:
         speed_system_frame.grid(column=2, row=2, sticky=(tkinter.N, tkinter.S))
         
         camera_names = []
-        for cam in range(camera_id_max + 1):
+        for cam in camera_ids:
             camera_names.append(f'カメラ {cam}')
         camera_frame = ttk.LabelFrame(mainframe, text='カメラ選択', padding="3 3 12 12")
         self.cameras = tkinter.StringVar(value=tuple(camera_names))
@@ -67,7 +70,7 @@ class Greeting:
             self.gauge_input.delete(0, 'end')
             self.gauge_input.insert(0, scale)
             
-    def final(self):        
+    def final(self, *args):
         scale = self.custom_gauge.get()
         try:
             v = scale.split('/')[1]
@@ -88,22 +91,3 @@ class Greeting:
         
         self.init_value = {'scale': scale, 'speed_system': speed_system, 'camera_id': camera_id, 'save_photo': self.save_photo.get()}
         self.root.destroy()
-
-if __name__ == '__main__':
-    print('ScaleSpeedCamera (鉄道模型車速計測ソフト) by mipsparc')
-    print('起動中です。しばらくお待ちください……''')
-
-    camera_id_max = -1
-    for camera_id in range(4, -1, -1):
-        cap = cv2.VideoCapture(camera_id)
-        if cap.isOpened():
-            camera_id_max = camera_id
-            cap.release()
-            break
-    
-    root = tkinter.Tk()
-    greeting = Greeting(root, camera_id_max)
-    try:
-        print(greeting.init_value)
-    except AttributeError:
-        exit()

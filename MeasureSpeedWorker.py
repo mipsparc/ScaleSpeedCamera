@@ -27,7 +27,7 @@ def normalizeFrame(v):
     frame = np.array(v, dtype=np.uint8)
     return frame
 
-def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, params):
+def MeasureSpeedWorker(frame_shared, kph_shared, a_arr, b_arr, box_q, params):
     avg = None
     train_from = None
     passed_a_time = None
@@ -41,23 +41,13 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
     last_detect_area_height = 300
     
     save_photo = params[3]
+    real_cam_w = params[5]
+    real_cam_h = params[6]
     
     last_mean = 1
 
     while True:
-        try:
-            frame = frame_q.get(True, 1.0)
-        # 本来自動で落ちるべきだが落ちないので
-        except queue.Empty:
-            sys.exit()
-        # 5フレ以上残ってたら
-        if frame_q.qsize() >= 5:
-            # 1フレ残して落とす
-            for i in range(frame_q.qsize() - 1):
-                try:
-                    frame = frame_q.get(False)
-                except queue.Empty:
-                    pass
+        frame = np.array(frame_shared, dtype=np.uint8).reshape(real_cam_h, real_cam_w)
         
         if (-1 in a_arr) or (-1 in b_arr):
             # 2次元地点検知コードが認識できなかった場合
@@ -181,12 +171,12 @@ def MeasureSpeedWorker(frame_q, kph_shared, a_arr, b_arr, box_q, scale_shared, p
         if passed_a_time is not None and passed_b_time is not None:
             passing_time = abs(passed_a_time - passed_b_time)
 
-            if scale_shared.value == 'N':
-                kph = int((qr_length / passing_time) * 3.6 * 150)
-            elif scale_shared.value == 'H':
-                kph = int((qr_length / passing_time) * 3.6 * 80)
-            else: # Z
-                kph = int((qr_length / passing_time) * 3.6 * 220)
+            #if scale_shared.value == 'N':
+            kph = int((qr_length / passing_time) * 3.6 * 150)
+            #elif scale_shared.value == 'H':
+                #kph = int((qr_length / passing_time) * 3.6 * 80)
+            #else: # Z
+                #kph = int((qr_length / passing_time) * 3.6 * 220)
 
             print(f'時速{kph}キロメートルです')
             kph_shared.value = kph
