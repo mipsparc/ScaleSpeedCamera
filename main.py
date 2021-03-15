@@ -106,7 +106,7 @@ if __name__ == '__main__':
         sys.exit()
     
     root = tkinter.Tk()
-    greeting = Greeting(root, camera_ids)
+    greeting = Greeting(root, camera_ids, version)
     try:
         camera_id_selected = int(greeting.init_value['camera_id'])
         save_photo = greeting.init_value['save_photo']
@@ -190,8 +190,7 @@ if __name__ == '__main__':
         if measure is None or not measure.is_alive():
             measure = createMeasure(frame_gray_shared, kph_shared, a_arr, b_arr, box_q, measure_params)
         
-        #area_height = WindowChange.area_height
-        area_height = 200
+        area_height = measure_params[2]
         
         if display_cnt % 5 == 0:
             display(frame, kph, boxes, fps, a_arr, b_arr, area_height, disp)
