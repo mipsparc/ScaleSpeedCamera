@@ -7,7 +7,7 @@ import cv2
 import sys
 import numpy as np
 
-def ReaderWorker(frame_shared, a_arr, b_arr, real_cam_w, real_cam_h):
+def ReaderWorker(frame_shared, a_arr, b_arr, camera_width, camera_height):
     last_a_update = 0
     last_b_update = 0
     a_center_y = -1
@@ -16,7 +16,7 @@ def ReaderWorker(frame_shared, a_arr, b_arr, real_cam_w, real_cam_h):
     b_top = -1
     
     while True:
-        frame = np.array(frame_shared[:], dtype=np.uint8).reshape(real_cam_h, real_cam_w)
+        frame = np.array(frame_shared[:], dtype=np.uint8).reshape(camera_height, camera_width)
         
         # 5秒間バーコードを検出できなかったら初期化する
         if last_a_update + 5 < time.time() or last_b_update + 5 < time.time():
@@ -30,14 +30,14 @@ def ReaderWorker(frame_shared, a_arr, b_arr, real_cam_w, real_cam_h):
         for d in codedata:
             if d.data == b'A':
                 a_center = int(d.rect.left + d.rect.width/2)
-                a_center_y = real_cam_h - int(d.rect.top + d.rect.height/2)
-                a_top = real_cam_h - d.rect.top - d.rect.height
+                a_center_y = camera_height - int(d.rect.top + d.rect.height/2)
+                a_top = camera_height - d.rect.top - d.rect.height
                 last_a_update = time.time()
 
             if d.data == b'B' or d.data == b'C' or d.data == b'D':
                 b_center = int(d.rect.left + d.rect.width/2)
-                b_center_y = real_cam_h - int(d.rect.top + d.rect.height/2)
-                b_top = real_cam_h - d.rect.top - d.rect.height
+                b_center_y = camera_height - int(d.rect.top + d.rect.height/2)
+                b_top = camera_height - d.rect.top - d.rect.height
                 last_b_update = time.time()
                 
         a_arr[0] = a_center

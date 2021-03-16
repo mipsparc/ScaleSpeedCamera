@@ -9,12 +9,12 @@ import cv2
 import numpy as np
 import sys
 
-def DisplayWorker(frame_shared, real_cam_w, real_cam_h, measure_params):
+def DisplayWorker(frame_shared, camera_width, camera_height, measure_params):
     root = tkinter.Tk()
-    disp = Display(root, frame_shared, real_cam_w, real_cam_h, measure_params)
+    disp = Display(root, frame_shared, camera_width, camera_height, measure_params)
 
 class Display:
-    def __init__(self, root, frame_shared, real_cam_w, real_cam_h, measure_params):
+    def __init__(self, root, frame_shared, camera_width, camera_height, measure_params):
         self.root = root
         iconimg = tkinter.PhotoImage(data=ICON) 
         root.iconphoto(True, iconimg)
@@ -28,15 +28,15 @@ class Display:
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         
         self.frame_shared = frame_shared
+        self.camera_width = camera_width
+        self.camera_height = camera_height
         self.measure_params = measure_params
-        self.real_cam_w = real_cam_w
-        self.real_cam_h = real_cam_h
         
         mainframe = ttk.Frame(self.root, padding="12 12 12 12")
         mainframe.grid(column=0, row=0, sticky=(tkinter.N, tkinter.W, tkinter.E, tkinter.S))
         
         self.canvas = tkinter.Canvas(mainframe)
-        self.canvas.configure(width=real_cam_w, height=real_cam_h)
+        self.canvas.configure(width=camera_width, height=camera_height)
         self.canvas.grid(column=1, row=1, padx=10, pady=10, sticky=(tkinter.N, tkinter.W))
         
         scales = ttk.Frame(mainframe, padding="12 12 12 12")
@@ -65,7 +65,7 @@ class Display:
         
         code_distance_frame = ttk.LabelFrame(scales, text='バーコード間隔(cm)', padding="12 12 12 12")
         self.code_distance = tkinter.IntVar()
-        code_distance_scale = tkinter.Scale(code_distance_frame, orient=tkinter.HORIZONTAL, length=400, from_=15.0, to=100.0, variable=self.code_distance)
+        code_distance_scale = tkinter.Scale(code_distance_frame, orient=tkinter.HORIZONTAL, length=400, from_=15.0, to=75.0, variable=self.code_distance)
         code_distance_scale.set(15)
         code_distance_scale.grid(column=0, row=0, sticky=tkinter.W)
         code_distance_frame.grid(column=4, row=0, sticky=(tkinter.W))
@@ -74,7 +74,7 @@ class Display:
         self.root.mainloop()
 
     def update(self):
-        frame = np.array(self.frame_shared, dtype=np.uint8).reshape(self.real_cam_h, self.real_cam_w, 3)
+        frame = np.array(self.frame_shared, dtype=np.uint8).reshape(self.camera_height, self.camera_width, 3)
 
         image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self.photo = ImageTk.PhotoImage(image=Image.fromarray(image_rgb))

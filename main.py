@@ -44,8 +44,8 @@ def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height, disp, speed_
     
     np.asarray(frame_shared)[:] = np.array(frame).flatten()
 
-def createMeasure(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system):
-    measure = Process(target=MeasureSpeedWorker, args=(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system), daemon=True)
+def createMeasure(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system, camera_width, camera_height):
+    measure = Process(target=MeasureSpeedWorker, args=(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system, camera_width, camera_height), daemon=True)
     measure.start()
     return measure
 
@@ -99,30 +99,33 @@ if __name__ == '__main__':
     real_cam_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     real_cam_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
+    shrink = False
+    if real_cam_w != camera_width or real_cam_h != camera_height:
+        shrink = True
+    
     ret, frame = cap.read()
-    frame_shared = sharedctypes.RawArray('B', real_cam_w * real_cam_h * 3)
+    if shrink:
+        frame = cv2.resize(frame, (camera_height, camera_width))
+    frame_shared = sharedctypes.RawArray('B', camera_width * camera_height * 3)
     np.asarray(frame_shared)[:] = np.array(frame).flatten()
     
-    measure_params = Array('i', [15, 20, 200, int(save_photo), 15, real_cam_w, real_cam_h])
-    disp = Process(target=DisplayWorker, args=(frame_shared, real_cam_w, real_cam_h, measure_params))
+    measure_params = Array('i', [15, 20, 200, int(save_photo), 15])
+    disp = Process(target=DisplayWorker, args=(frame_shared, camera_width, camera_height, measure_params))
     disp.start()
 
     camera_fps = 60
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FPS, camera_fps)
     real_cam_fps = int(cap.get(cv2.CAP_PROP_FPS))
-    print(f'{real_cam_w}x{real_cam_h} {real_cam_fps}fps')
-
-    print('カメラの初期化が完了しました')
-    print()
+    print(f'{real_cam_fps}fps')
         
     a_arr = Array('i', [-1, -1, -1])
     b_arr = Array('i', [-1, -1, -1])
     
-    frame_gray_shared = sharedctypes.RawArray('B', real_cam_w * real_cam_h)
+    frame_gray_shared = sharedctypes.RawArray('B', camera_width * camera_height)
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     np.asarray(frame_gray_shared)[:] = np.array(gray_frame).flatten()
-    reader = Process(target=ReaderWorker, args=(frame_gray_shared, a_arr, b_arr, real_cam_w, real_cam_h), daemon=True)
+    reader = Process(target=ReaderWorker, args=(frame_gray_shared, a_arr, b_arr, camera_width, camera_height), daemon=True)
     reader.start()
     
     box_q  = Queue()
@@ -144,7 +147,9 @@ if __name__ == '__main__':
         ret, frame = cap.read()
         if ret == False:
             continue
-                
+        if shrink:
+            frame = cv2.resize(frame, (camera_height, camera_width))
+        
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         np.asarray(frame_gray_shared)[:] = np.array(gray_frame).flatten()
         
@@ -156,7 +161,7 @@ if __name__ == '__main__':
             pass
         
         if measure is None or not measure.is_alive():
-            measure = createMeasure(frame_gray_shared, speed_shared, a_arr, b_arr, box_q, measure_params, scale, speed_system)
+            measure = createMeasure(frame_gray_shared, speed_shared, a_arr, b_arr, box_q, measure_params, scale, speed_system, camera_width, camera_height)
         
         area_height = measure_params[2]
         

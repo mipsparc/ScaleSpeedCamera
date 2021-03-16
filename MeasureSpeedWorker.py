@@ -27,7 +27,7 @@ def normalizeFrame(v):
     frame = np.array(v, dtype=np.uint8)
     return frame
 
-def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system):
+def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system, camera_width, camera_height):
     avg = None
     train_from = None
     passed_a_time = None
@@ -45,13 +45,11 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
     last_detect_area_height = 300
     
     save_photo = params[3]
-    real_cam_w = params[5]
-    real_cam_h = params[6]
     
     last_mean = 1
 
     while True:
-        frame = np.array(frame_shared[:], dtype=np.uint8).reshape(real_cam_h, real_cam_w)
+        frame = np.array(frame_shared[:], dtype=np.uint8).reshape(camera_height, camera_width)
         
         if (-1 in a_arr) or (-1 in b_arr):
             # 2次元地点検知コードが認識できなかった場合
