@@ -82,7 +82,6 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
         if avg is None or detect_area_height != last_detect_area_height:
             avg = detect_area.copy().astype("float")
             last_detect_area_height = detect_area_height
-            cv2.imwrite('out.jpg', detect_area)
             continue
 
         cv2.accumulateWeighted(detect_area, avg, weight)
