@@ -103,9 +103,8 @@ if __name__ == '__main__':
     frame_shared = sharedctypes.RawArray('B', real_cam_w * real_cam_h * 3)
     np.asarray(frame_shared)[:] = np.array(frame).flatten()
     
-    root = tkinter.Tk()
     measure_params = Array('i', [15, 20, 200, int(save_photo), 15, real_cam_w, real_cam_h])
-    disp = Process(target=DisplayWorker, args=(root, frame_shared, real_cam_w, real_cam_h, measure_params))
+    disp = Process(target=DisplayWorker, args=(frame_shared, real_cam_w, real_cam_h, measure_params))
     disp.start()
 
     camera_fps = 60

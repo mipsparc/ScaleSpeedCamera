@@ -12,7 +12,10 @@ class Greeting:
         self.root.title("ScaleSpeedCamera")
         self.root.resizable(False, False)
         s = ttk.Style()
-        s.theme_use('alt')
+        if 'winnative' in s.theme_names():
+            s.theme_use('winnative')
+        else:
+            s.theme_use('alt')
         
         if old_ver:
             messagebox.showinfo('更新をお願いします', message='最新のバージョンが出ています。\ngithub.com/mipsparc/ScaleSpeedCamera/releases')

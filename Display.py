@@ -9,7 +9,8 @@ import cv2
 import numpy as np
 import sys
 
-def DisplayWorker(root, frame_shared, real_cam_w, real_cam_h, measure_params):
+def DisplayWorker(frame_shared, real_cam_w, real_cam_h, measure_params):
+    root = tkinter.Tk()
     disp = Display(root, frame_shared, real_cam_w, real_cam_h, measure_params)
 
 class Display:
@@ -20,7 +21,10 @@ class Display:
         self.root.title("ScaleSpeedCamera")
         self.root.resizable(False, False)
         s = ttk.Style()
-        s.theme_use('alt')
+        if 'winnative' in s.theme_names():
+            s.theme_use('winnative')
+        else:
+            s.theme_use('alt')
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         
         self.frame_shared = frame_shared
