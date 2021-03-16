@@ -48,7 +48,7 @@ class Display:
         weight_frame = ttk.LabelFrame(scales, text='動体検知しきい値', padding="12 12 12 12")
         self.weight = tkinter.IntVar()
         weight_scale = tkinter.Scale(weight_frame, orient=tkinter.HORIZONTAL, length=200, from_=1.0, to=50.0, variable=self.weight)
-        weight_scale.set(15)
+        weight_scale.set(25)
         weight_scale.grid(column=0, row=0, sticky=tkinter.W)
         weight_frame.grid(column=2, row=0, sticky=(tkinter.W))
         
@@ -61,7 +61,7 @@ class Display:
         
         code_distance_frame = ttk.LabelFrame(scales, text='バーコード間隔(cm)', padding="12 12 12 12")
         self.code_distance = tkinter.IntVar()
-        code_distance_scale = tkinter.Scale(code_distance_frame, orient=tkinter.HORIZONTAL, length=200, from_=1.0, to=50.0, variable=self.code_distance)
+        code_distance_scale = tkinter.Scale(code_distance_frame, orient=tkinter.HORIZONTAL, length=400, from_=15.0, to=100.0, variable=self.code_distance)
         code_distance_scale.set(15)
         code_distance_scale.grid(column=0, row=0, sticky=tkinter.W)
         code_distance_frame.grid(column=4, row=0, sticky=(tkinter.W))
