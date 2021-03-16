@@ -11,7 +11,7 @@ import json
 from multiprocessing import Process, Array, Value, Queue, freeze_support, sharedctypes
 import queue
 import tkinter
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from ReaderWorker import ReaderWorker
 from MeasureSpeedWorker import MeasureSpeedWorker
 from Greeting import Greeting
@@ -51,20 +51,15 @@ def createMeasure(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale
 
 if __name__ == '__main__':
     freeze_support()
-        
-    # 最新バージョン確認 TODO: GUI化
+
+    # 旧バージョン判定
+    old_ver = False
     try:
         with urllib.request.urlopen('https://api.github.com/repos/mipsparc/ScaleSpeedCamera/releases/latest', timeout=3) as response:
             j = response.read().decode('utf-8')
             latest_version = json.loads(j)['tag_name'][1:]
             if float(latest_version) > version:
-                print('新しいバージョンが出ています。以下よりダウンロードをお願いします。')
-                print('https://github.com/mipsparc/ScaleSpeedCamera/releases')
-                print()
-                input('このまま起動するには、Enterキーを押してください')
-                print() 
-    except KeyboardInterrupt:
-        sys.exit()
+                old_ver = True
     except:
         pass
     
@@ -85,7 +80,7 @@ if __name__ == '__main__':
         sys.exit()
     
     root = tkinter.Tk()
-    greeting = Greeting(root, camera_ids, version)
+    greeting = Greeting(root, camera_ids, version, old_ver)
     try:
         camera_id_selected = int(greeting.init_value['camera_id'])
         save_photo = greeting.init_value['save_photo']

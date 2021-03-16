@@ -1,11 +1,11 @@
 #coding:utf-8
 
 import tkinter
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from Icon import ICON
 
 class Greeting:
-    def __init__(self, root, camera_ids, version):
+    def __init__(self, root, camera_ids, version, old_ver):
         self.root = root
         iconimg = tkinter.PhotoImage(data=ICON) 
         root.iconphoto(True, iconimg)
@@ -13,6 +13,9 @@ class Greeting:
         self.root.resizable(False, False)
         s = ttk.Style()
         s.theme_use('alt')
+        
+        if old_ver:
+            messagebox.showinfo('更新をお願いします', message='最新のバージョンが出ています。\ngithub.com/mipsparc/ScaleSpeedCamera/releases')
 
         mainframe = ttk.Frame(self.root, padding="12 12 12 12")
         mainframe.grid(column=0, row=0, sticky=(tkinter.N, tkinter.W, tkinter.E, tkinter.S))
