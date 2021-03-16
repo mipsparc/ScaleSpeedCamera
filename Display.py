@@ -8,8 +8,14 @@ import queue
 import cv2
 import numpy as np
 import sys
+import platform
+OS = platform.system()
+if OS == 'Windows':
+    import ctypes
 
 def DisplayWorker(frame_shared, camera_width, camera_height, measure_params):
+    if OS == 'Windows':
+        ctypes.windll.shcore.SetProcessDpiAwareness(True)
     root = tkinter.Tk()
     disp = Display(root, frame_shared, camera_width, camera_height, measure_params)
 

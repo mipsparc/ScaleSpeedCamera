@@ -16,6 +16,10 @@ from ReaderWorker import ReaderWorker
 from MeasureSpeedWorker import MeasureSpeedWorker
 from Greeting import Greeting
 from Display import DisplayWorker
+import platform
+OS = platform.system()
+if OS == 'Windows':
+    import ctypes
 
 # リリースバージョン
 version = 1.1
@@ -78,6 +82,9 @@ if __name__ == '__main__':
     if len(camera_ids) == 0:
         messagebox.showinfo(message='利用できるカメラがありません。\n他のソフトで使用していませんか?')
         sys.exit()
+        
+    if OS == 'Windows':
+        ctypes.windll.shcore.SetProcessDpiAwareness(True)
     
     root = tkinter.Tk()
     greeting = Greeting(root, camera_ids, version, old_ver)
