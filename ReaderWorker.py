@@ -16,7 +16,7 @@ def ReaderWorker(frame_shared, a_arr, b_arr, real_cam_w, real_cam_h):
     b_top = -1
     
     while True:
-        frame = np.array(frame_shared, dtype=np.uint8).reshape(real_cam_h, real_cam_w)
+        frame = np.array(frame_shared[:], dtype=np.uint8).reshape(real_cam_h, real_cam_w)
         
         # 5秒間バーコードを検出できなかったら初期化する
         if last_a_update + 5 < time.time() or last_b_update + 5 < time.time():

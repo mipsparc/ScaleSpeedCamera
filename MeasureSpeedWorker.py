@@ -23,7 +23,7 @@ def speak(speech_text):
 def normalizeFrame(v):
     # 明るさを平準化する
     # https://qiita.com/s-kajioka/items/9c9fc6c0e9e8a9d05800
-    v = ( v - np.mean(v)) / np.std(v) * 30 + 90
+    v = ( v - np.mean(v)) / np.std(v) * 30 + 120
     frame = np.array(v, dtype=np.uint8)
     return frame
 
@@ -35,14 +35,13 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
     last_time = 0
     
     if speed_system == 'kph':
-        scale_factor = scale
+        scale_factor = float(scale)
     else:
-        scale_factor = scale * 1.609344
+        scale_factor = float(scale) * 0.621371
 
     # 列車が去るまで(rectがなくなるまで)なにもしない。20フレーム数える
     is_still = 20
 
-    detect_wait_cnt = 10
     last_detect_area_height = 300
     
     save_photo = params[3]
@@ -52,11 +51,10 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
     last_mean = 1
 
     while True:
-        frame = np.array(frame_shared, dtype=np.uint8).reshape(real_cam_h, real_cam_w)
+        frame = np.array(frame_shared[:], dtype=np.uint8).reshape(real_cam_h, real_cam_w)
         
         if (-1 in a_arr) or (-1 in b_arr):
             # 2次元地点検知コードが認識できなかった場合
-            detect_wait_cnt = 10
             continue
         else:
             a_center = a_arr[0]
@@ -68,14 +66,9 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
             b_top = b_arr[2]
             
             rect_size = params[0]
-            weight = params[1] / 100 + 0.01
+            weight = params[1] / 100.0
             area_height = params[2]
             qr_length = params[4] / 100
-            
-            #認識し始めから検出まで10フレーム待つ
-            if detect_wait_cnt > 0:
-                detect_wait_cnt -= 1
-                continue
 
             # 検出域を制限する
             detect_area_top = max(int((a_top + b_top) / 2) - area_height, 1)
@@ -89,6 +82,7 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
         if avg is None or detect_area_height != last_detect_area_height:
             avg = detect_area.copy().astype("float")
             last_detect_area_height = detect_area_height
+            cv2.imwrite('out.jpg', detect_area)
             continue
 
         cv2.accumulateWeighted(detect_area, avg, weight)
@@ -101,7 +95,7 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
             continue
         last_mean = mean
         
-        thresh = cv2.threshold(frameDelta, 35, 255, cv2.THRESH_TOZERO)[1]
+        thresh = cv2.threshold(frameDelta, 30, 255, cv2.THRESH_TOZERO)[1]
         
         contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                         
@@ -182,27 +176,29 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
                 print(f'時速{result}キロメートルです')
                 speed_shared.value = result
                 speak(f'時速{result}キロメートルです')
+                speed_system_str = 'km/h'
             else:
                 print(f'時速{result}マイルです')
                 speed_shared.value = result
                 speak(f'時速{result}マイルです')
+                speed_system_str = 'MPH'
             first_passed_time = min(passed_a_time, passed_b_time)
             passed_time = max(passed_a_time, passed_b_time)
 
-            #if save_photo:
-                #OS = platform.system()
-                #if OS == 'Windows':
-                    #path = os.path.expanduser('~/Pictures')
-                #else:
-                    #path = os.path.expanduser('~')
+            if save_photo:
+                OS = platform.system()
+                if OS == 'Windows':
+                    path = os.path.expanduser('~/Pictures')
+                else:
+                    path = os.path.expanduser('~')
                 
-                #kph_area = cv2.getTextSize(f'{kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
-                #cv2.rectangle(first_pass_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-                #cv2.putText(first_pass_frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
-                #cv2.imwrite(path + f'/train_{first_passed_time}.jpg', first_pass_frame)
+                kph_area = cv2.getTextSize(f'{result}{speed_system_str}', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
+                cv2.rectangle(first_pass_frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+                cv2.putText(first_pass_frame, f'{result}{speed_system_str}', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+                cv2.imwrite(path + f'/train_{first_passed_time}.jpg', first_pass_frame)
                 
-                #cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-                #cv2.putText(frame, f'{kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
-                #cv2.imwrite(path + f'/train_{passed_time}.jpg', frame)
+                cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
+                cv2.putText(frame, f'{result}{speed_system_str}', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+                cv2.imwrite(path + f'/train_{result}.jpg', frame)
 
             break

@@ -19,40 +19,19 @@ from Display import DisplayWorker
 
 # リリースバージョン
 version = 1.1
-
-# 対応スケール
-'''
-N: 1/160
-HO(略号H): 1/80
-Z: 1/220
-'''
-
-class WindowChange:
-    @classmethod
-    def changeRectSize(self, num):
-        self.rect_size = num
-
-    # weightの10倍
-    @classmethod
-    def changeWeight(self, num):
-        self.weight = num
         
-    @classmethod
-    def changeHeight(self, num):
-        self.area_height = num
-        
-    @classmethod
-    def changeQrLength(self, num):
-        self.qr_length = num
-        
-def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height, disp):
+def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height, disp, speed_system):
     for box in boxes:
         cv2.rectangle(frame, (box[0], box[1]), (box[0] + box[2], box[1] + box[3]), (0, 255, 0), 5)
 
     if last_kph > 0:
-        kph_area = cv2.getTextSize(f'{last_kph}km/h', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
+        if speed_system == 'kph':
+            speed_suffix = 'km/h'
+        else:
+            speed_suffix = 'MPH'
+        kph_area = cv2.getTextSize(f'{last_kph}{speed_suffix}', cv2.FONT_HERSHEY_DUPLEX, 2, 2)[0]
         cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
-        cv2.putText(frame, f'{last_kph}km/h', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
+        cv2.putText(frame, f'{last_kph}{speed_suffix}', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
 
     if fps > 0:
         fps_area =  cv2.getTextSize(f'{fps}fps', cv2.FONT_HERSHEY_DUPLEX, 1, 1)[0]
@@ -188,7 +167,7 @@ if __name__ == '__main__':
         area_height = measure_params[2]
         
         if display_cnt % 5 == 0:
-            display(frame, speed, boxes, fps, a_arr, b_arr, area_height, disp)
+            display(frame, speed, boxes, fps, a_arr, b_arr, area_height, disp, speed_system)
             display_cnt = 0
         else:
             display_cnt += 1

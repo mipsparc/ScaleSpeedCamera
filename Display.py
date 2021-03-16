@@ -12,8 +12,6 @@ import sys
 def DisplayWorker(root, frame_shared, real_cam_w, real_cam_h, measure_params):
     disp = Display(root, frame_shared, real_cam_w, real_cam_h, measure_params)
 
-
-#TODO: シークバー同期機能をつける
 class Display:
     def __init__(self, root, frame_shared, real_cam_w, real_cam_h, measure_params):
         self.root = root
@@ -49,8 +47,8 @@ class Display:
         
         weight_frame = ttk.LabelFrame(scales, text='動体検知しきい値', padding="12 12 12 12")
         self.weight = tkinter.IntVar()
-        weight_scale = tkinter.Scale(weight_frame, orient=tkinter.HORIZONTAL, length=200, from_=1.0, to=10.0, variable=self.weight)
-        weight_scale.set(2)
+        weight_scale = tkinter.Scale(weight_frame, orient=tkinter.HORIZONTAL, length=200, from_=1.0, to=50.0, variable=self.weight)
+        weight_scale.set(15)
         weight_scale.grid(column=0, row=0, sticky=tkinter.W)
         weight_frame.grid(column=2, row=0, sticky=(tkinter.W))
         
@@ -61,7 +59,7 @@ class Display:
         area_height_scale.grid(column=0, row=0, sticky=tkinter.W)
         area_height_frame.grid(column=3, row=0, sticky=(tkinter.W))
         
-        code_distance_frame = ttk.LabelFrame(scales, text='バーコード間隔', padding="12 12 12 12")
+        code_distance_frame = ttk.LabelFrame(scales, text='バーコード間隔(cm)', padding="12 12 12 12")
         self.code_distance = tkinter.IntVar()
         code_distance_scale = tkinter.Scale(code_distance_frame, orient=tkinter.HORIZONTAL, length=200, from_=1.0, to=50.0, variable=self.code_distance)
         code_distance_scale.set(15)
