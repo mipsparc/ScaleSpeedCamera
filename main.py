@@ -46,7 +46,7 @@ def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height, disp, speed_
     cv2.line(frame, (0, a_arr[2]), (2000, b_arr[2]), (255, 0, 0), 3)
     cv2.line(frame, (0, a_arr[2] - area_height), (2000, b_arr[2] - area_height), (255, 0, 0), 3)
     
-    np.asarray(frame_shared)[:] = np.array(frame).flatten()
+    np.asarray(frame_shared)[:] = frame.flatten()
 
 def createMeasure(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system, camera_width, camera_height):
     measure = Process(target=MeasureSpeedWorker, args=(frame_shared, speed_shared, a_arr, b_arr, box_q, params, scale, speed_system, camera_width, camera_height), daemon=True)
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     if shrink:
         frame = cv2.resize(frame, (camera_height, camera_width))
     frame_shared = sharedctypes.RawArray('B', camera_width * camera_height * 3)
-    np.asarray(frame_shared)[:] = np.array(frame).flatten()
+    np.asarray(frame_shared)[:] = frame.flatten()
     
     measure_params = Array('i', [15, 20, 200, int(save_photo), 15])
     disp = Process(target=DisplayWorker, args=(frame_shared, camera_width, camera_height, measure_params))
@@ -131,7 +131,7 @@ if __name__ == '__main__':
     
     frame_gray_shared = sharedctypes.RawArray('B', camera_width * camera_height)
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    np.asarray(frame_gray_shared)[:] = np.array(gray_frame).flatten()
+    np.asarray(frame_gray_shared)[:] = gray_frame.flatten()
     reader = Process(target=ReaderWorker, args=(frame_gray_shared, a_arr, b_arr, camera_width, camera_height), daemon=True)
     reader.start()
     
@@ -158,7 +158,7 @@ if __name__ == '__main__':
             frame = cv2.resize(frame, (camera_height, camera_width))
         
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        np.asarray(frame_gray_shared)[:] = np.array(gray_frame).flatten()
+        np.asarray(frame_gray_shared)[:] = gray_frame.flatten()
         
         speed = speed_shared.value
         
