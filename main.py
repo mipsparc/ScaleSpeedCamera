@@ -22,7 +22,7 @@ if OS == 'Windows':
     import ctypes
 
 # リリースバージョン
-version = 1.1
+version = 1.12
         
 def display(frame, last_kph, boxes, fps, a_arr, b_arr, area_height, disp, speed_system):
     for box in boxes:

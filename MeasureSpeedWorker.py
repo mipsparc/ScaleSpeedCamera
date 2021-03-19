@@ -196,6 +196,6 @@ def MeasureSpeedWorker(frame_shared, speed_shared, a_arr, b_arr, box_q, params, 
                 
                 cv2.rectangle(frame, (0, 0), (kph_area[0] + 70, kph_area[1] + 40), (150, 150 , 150), -1)
                 cv2.putText(frame, f'{result}{speed_system_str}', (35, kph_area[1] + 20), cv2.FONT_HERSHEY_DUPLEX, 2, (255, 255, 255), 2)
-                cv2.imwrite(path + f'/train_{result}.jpg', frame)
+                cv2.imwrite(path + f'/train_{passed_time}.jpg', frame)
 
             break
